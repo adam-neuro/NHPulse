@@ -1,0 +1,9 @@
+# Auto detect text files and perform LF normalization
+* text=auto
+
+# MATLAB sources should always be treated as text
+*.m text
+
+# Treat large/binary outputs as non-diffable and prevent EOL normalization
+*.stl -diff -text
+*.zip -diff -text

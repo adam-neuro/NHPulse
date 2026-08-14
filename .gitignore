@@ -1,0 +1,33 @@
+# Local machine/path config
+local.paths.json
+local.paths.mat
+acsUtilities/local.paths.json
+acsUtilities/local.paths.mat
+
+# Generated data and analysis products
+data/
+outputs/
+work/
+scratch/
+roast_work/
+poster_local/
+
+# Large neuroimaging and manufacturing products
+*.nii
+*.nii.gz
+*.mgz
+*.mgh
+*.dcm
+*.msh
+*.pos
+*.gcode
+
+# MATLAB autosave/temp/cache products
+*.asv
+*.m~
+slprj/
+
+# Generated figures and binary reports
+*_report.mat
+*_qc.png
+*_qc.pdf

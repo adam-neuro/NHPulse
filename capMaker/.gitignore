@@ -1,0 +1,12 @@
+# Generated STL outputs (all contents are programmatically generated)
+stl/
+
+# Runtime/cache directories
+wrappers/cache/
+
+# MATLAB autosave & temp files
+*.asv
+*.m~
+
+# Simulink/Matlab generated caches (if present)
+slprj/

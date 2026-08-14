@@ -1,0 +1,10 @@
+* text=auto
+
+*.m text
+*.md text
+*.json text
+*.bib text
+*.loc text
+
+*.stl -diff -text
+*.STL -diff -text

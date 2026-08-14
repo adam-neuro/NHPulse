@@ -1,0 +1,15 @@
+{
+  "boxRoot": "",
+  "dataRoot": "/path/to/project/data",
+  "outputRoot": "/path/to/project/outputs",
+  "inpolyhedronPath": "",
+  "subjects": {
+    "demoSubject": {
+      "aliases": ["demo"],
+      "root": "/path/to/project/data/demoSubject",
+      "mprageInitial": "/path/to/project/data/demoSubject/dicom_or_nifti_input",
+      "anatomyWork": "/path/to/project/outputs/subjects/demoSubject/anatomy",
+      "segmentationWork": "/path/to/project/outputs/subjects/demoSubject/segmentation"
+    }
+  }
+}
