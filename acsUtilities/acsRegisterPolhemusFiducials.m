@@ -1,15 +1,15 @@
 function out = acsRegisterPolhemusFiducials(polhemusIn, modelFiducials, varargin)
-% ACSREGISTERPOLHEMUSFIDUCIALS Register Polhemus points to a model frame.
+% ACSREGISTERPOLHEMUSFIDUCIALS Register saved digitizer points to a model frame.
 %
 % out = acsRegisterPolhemusFiducials(polhemusSession, modelFiducials)
-% extracts Nas/Lpa/Rpa from a Polhemus session and a model fiducial set, then
+% extracts Nas/Lpa/Rpa from a saved digitizer session and a model fiducial set, then
 % estimates a rigid row-vector transform:
 %
 %   modelMm = polhemusMm * out.rotation + out.translationMm
 %
-% Inputs can be MAT reports from acsPolhemus, legacy Polhemus text files,
+% Inputs can be MAT/JSON reports, legacy tabular digitizer text files,
 % structs with labels/coordinates, or 3-by-3 numeric fiducial matrices.
-% The output applies the fitted transform to every labeled Polhemus point,
+% The output applies the fitted transform to every labeled digitizer point,
 % not just the registration fiducials.
 %
 % Name-value options:

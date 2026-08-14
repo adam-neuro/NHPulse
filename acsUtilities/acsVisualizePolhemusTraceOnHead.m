@@ -1,12 +1,12 @@
 function out = acsVisualizePolhemusTraceOnHead(polhemusIn, modelFiducials, varargin)
-% ACSVISUALIZEPOLHEMUSTRACEONHEAD Overlay Polhemus traces on a head mesh.
+% ACSVISUALIZEPOLHEMUSTRACEONHEAD Overlay saved digitizer traces on a head mesh.
 %
 % out = acsVisualizePolhemusTraceOnHead(polhemusSession, modelFiducials)
-% registers a saved acsPolhemus session to modelFiducials with
+% registers a saved digitizer session to modelFiducials with
 % acsRegisterPolhemusFiducials, then plots the transformed trace points on
 % the uncropped capMaker full-head mesh.
 %
-% polhemusSession can be an acsPolhemus MAT/JSON/TXT report or an existing
+% polhemusSession can be a MAT/JSON/TXT point-set report or an existing
 % acsRegisterPolhemusFiducials output. modelFiducials is typically the
 % acsSelectModelFiducials output made from meshStage='fullHead'.
 %

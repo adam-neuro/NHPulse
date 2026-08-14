@@ -823,70 +823,27 @@ channels, so it is a visualization aid rather than a new forward model. Use
 `interpolation='nearest'` to inspect channel domains without smoothing, or set
 `rbfSigmaMM` to tune the smoothing width.
 
-## Polhemus Digitization
+## Saved Digitizer Traces
 
-`acsPolhemus` provides an interactive interface for the Polhemus FasTrak
-digitizer. The GUI includes session-type controls for free digitizing, monkey
-implant traces, scalp traces, cap electrode QC, and the legacy 32-channel EEG
-label sequence. Monkey-head sessions prompt for `Nas`, `Lpa`, and `Rpa` first;
-free digitizing sessions do not require fiducials.
-Use **Select Landmarks...** to choose from the shared macaque landmark bullpen:
-`Nas`, `Lpa`, `Rpa`, `NostrilSeptum`, `LeftOuterCanthus`,
-`RightOuterCanthus`, `Inion`, `headpost1`, `headpost2`,
-`rightChairPoint`, `leftChairPoint`, and `topChairPoint`. The **Landmark
-assessment** session type selects all of these by default so a session can be
-used to compare which landmarks are repeatable enough for later registration.
-Cap electrode QC sessions also prompt for repeatable non-anatomical reference
-points before the electrode labels: `headpost1`, `headpost2`,
-`rightChairPoint`, `leftChairPoint`, and `topChairPoint`. These are intended
-for aligning electrode digitization sessions to each other after the headpost
-has been localized; they should not be used as MRI anatomical fiducials until
-their model-space locations are known.
+The public release does not include a live hardware acquisition GUI. Users can
+collect 3D points with their preferred digitizer workflow, then bring saved
+fiducial points, scalp traces, implant traces, or electrode-QC points into
+NHPulse for registration and visualization.
 
-Saving a Polhemus session writes three sidecar files with the same stem:
+Several historical utility names still include `Polhemus`; in the public
+release, those functions operate on saved point-set files or structs and do
+not require Polhemus hardware or MATLAB Instrument Control Toolbox. Point-set
+files should provide labels plus coordinates in millimeters, and optional
+trace/object groupings for scalp or implant loops.
 
-- legacy tab-delimited `.txt` with `label x y z` coordinates in centimeters
-- `.mat` report with labels, coordinates, anatomical fiducials, repeatable
-  session reference points, object traces, and session metadata
-- `.json` report with the same metadata for inspection outside MATLAB
-
-For implant sessions, use **Next Object...** to start tracing a headpost or
-recording-chamber footprint, digitize points around the object boundary, and
-then use **Done Tracing Object** before saving or starting the next object.
-Those traced loops are stored in `out.objects`.
-
-When the GUI is aligned to `Nas`/`Lpa`/`Rpa`, subsequent digitized samples are
-stored in the same fiducial-aligned coordinate frame as the already-captured
-fiducials. The saved report includes the software alignment transform in
-`out.alignment`.
-
-For stylus-tip calibration, choose the **Stylus offset calibration** session
-type. This mode sets the FasTrak hardware stylus offset to zero, then expects
-the user to hold the stylus tip fixed in one small divot while sampling many
-different stylus orientations. Use **Calibration > Fit Stylus Offset From
-Current Samples...** to estimate the local sensor-to-tip offset and save a
-MAT/JSON calibration. The fitter tests several plausible FasTrak Euler
-conventions, reports the best residual, and also reports residual anisotropy;
-large direction-dependent residuals suggest a deeper tracking or orientation
-calibration problem beyond a simple fixed tip offset.
-
-Load a saved calibration from **Calibration > Load Stylus Offset
-Calibration...** before normal digitizing sessions. When a software
-calibration is active, `acsPolhemus` keeps the hardware offset at zero, applies
-the calibrated offset in MATLAB, and saves both raw sensor coordinates and
-corrected tip coordinates. The old factory hardware-offset behavior remains
-available by clearing the software calibration.
-
-Saved calibration files can also be refit or inspected from the command line:
+Use `acsMonkeyLandmarkBullpen` to get the shared macaque landmark list for
+model-fiducial selection and external digitizer prompts:
 
 ```matlab
-cal = acsCalibratePolhemusStylusOffset( ...
-    'C:/path/to/polhemusStylusOffsetSwingSession.mat', ...
-    'showFigures', true, ...
-    'saveFigures', true);
+landmarkLabels = acsMonkeyLandmarkBullpen('labels');
 ```
 
-Use `acsRegisterPolhemusFiducials` to align saved Polhemus points to MRI,
+Use `acsRegisterPolhemusFiducials` to align saved digitizer points to MRI,
 ROAST, or capMaker coordinates once the corresponding model-space fiducials
 have been identified:
 
@@ -899,7 +856,7 @@ modelFiducials = acsSelectModelFiducials(combinedLayout, ...
     'saveFigures', true);
 
 registration = acsRegisterPolhemusFiducials( ...
-    'C:/path/to/polhemus_session.mat', ...
+    'C:/path/to/digitizer_session.mat', ...
     modelFiducials, ...
     'modelUnits', 'mm', ...
     'transformType', 'rigid');
@@ -910,11 +867,11 @@ because `Nas`, `Lpa`, and `Rpa` are usually cropped out of the manufacturing
 cap mesh. The selected points are still saved in capMaker print-frame
 millimeters, using the same print transform as the cropped cap mesh.
 Shift-click the head mesh to place the active fiducial; drag rotates the view.
-The registration output transforms every saved Polhemus point, not just
+The registration output transforms every saved digitizer point, not just
 `Nas`/`Lpa`/`Rpa`:
 
 For an all-landmark assessment, use the same bullpen labels when selecting
-model fiducials and when registering/visualizing the Polhemus session:
+model fiducials and when registering/visualizing the digitizer session:
 
 ```matlab
 landmarkLabels = acsMonkeyLandmarkBullpen('labels');
@@ -947,14 +904,14 @@ capMaker mesh, use:
 
 ```matlab
 traceQc = acsVisualizePolhemusTraceOnHead( ...
-    'C:/path/to/reesesHeadpostTrace25jun2026.mat', ...
+    'C:/path/to/headpostTraceSession.mat', ...
     modelFiducials, ...
     'fiducialLabels', {'Nas', 'Lpa', 'Rpa'}, ...
     'showFigures', true, ...
     'saveFigures', true);
 ```
 
-If the Polhemus report contains named `objects`, those are drawn separately.
+If the digitizer report contains named `objects`, those are drawn separately.
 Otherwise all non-fiducial points are treated as one ordered trace. The output
 reports nearest-head-mesh distances for a first-pass registration sanity
 check.
@@ -962,7 +919,7 @@ check.
 The transform is row-vector based:
 
 ```matlab
-pointsModelMm = pointsPolhemusMm * registration.rotation + ...
+pointsModelMm = pointsDigitizerMm * registration.rotation + ...
     registration.translationMm;
 ```
 

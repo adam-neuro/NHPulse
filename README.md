@@ -15,8 +15,8 @@ on top of the same functions later.
 
 - DICOM/NIfTI preprocessing helpers for monkey MRI workflows.
 - ROAST-compatible tissue-label and lead-field generation wrappers.
-- Phone-scan and Polhemus registration utilities for updating scalp shape and
-  localizing implants.
+- Phone-scan and saved digitizer-trace registration utilities for updating
+  scalp shape and localizing implants.
 - Subject-specific headpost, chamber, ear, face, and manufacturing exclusion
   tools.
 - Iterative candidate growth for tES electrode layouts, including surrogate
@@ -56,7 +56,18 @@ upstream ROAST README is preserved at [docs/ROAST_README.md](docs/ROAST_README.m
 3. Configure local machine paths using `acsUtilities/local.paths.json`.
    Generated data should live outside git under `outputs/`, `data/`, or a
    configured external data root.
-4. Work through [exampleWalkthrough.m](exampleWalkthrough.m) one cell at a time.
+4. Run the synthetic smoke test to verify that the installation can generate
+   tiny ROAST-ready demo data and place a toy cap layout:
+
+   ```matlab
+   addpath(fullfile(repoRoot, 'syntheticMwe'));
+   smokeOut = nhpulseRunSyntheticSmokeTest( ...
+       fullfile(repoRoot, 'outputs', 'syntheticMwe', 'nhpulseSyntheticSmoke'), ...
+       'force', true, ...
+       'showFigures', true);
+   ```
+
+5. Work through [exampleWalkthrough.m](exampleWalkthrough.m) one cell at a time.
 
 The walkthrough is intentionally cell-based because several steps are
 interactive, slow, or both. ROAST/GetDP lead-field solves can take hours; the
@@ -65,21 +76,20 @@ lead fields during software development.
 
 ## Example Data
 
-Subject MRI and derived lead-field files are too large for normal git hosting
-and may also be sensitive. See [docs/example_data.md](docs/example_data.md) for
-the intended example-data strategy.
+Subject MRI, phone/LiDAR scans, animal photographs, and derived lead-field
+files are too large for normal git hosting and may also be sensitive. The
+repository therefore includes a synthetic data generator instead of generated
+NIfTI outputs or real scan exports. See
+[syntheticMwe/README.md](syntheticMwe/README.md) for the current smoke-test
+entry point and [docs/example_data.md](docs/example_data.md) for the broader
+example-data strategy.
 
 In brief, a public release should include:
 
-- Small synthetic or dummy lead-field products for software tests.
+- Synthetic data generators and small dummy lead-field products for software
+  tests.
 - Small geometry-only examples for UI/manufacturing demonstrations.
 - Download instructions for any full MRI/lead-field example hosted externally.
-
-## Public Release Checklist
-
-See [docs/public_release_checklist.md](docs/public_release_checklist.md) for
-the cleanup tasks that should be checked before switching the GitHub repository
-from private to public.
 
 ## Important Caveats
 
@@ -96,6 +106,7 @@ from private to public.
 
 - `acsUtilities/` - project-specific workflow functions and QC utilities.
 - `capMaker/` - cap geometry, voxel/mesh, and STL helpers.
+- `syntheticMwe/` - synthetic data generators and smoke-test utilities.
 - `exampleWalkthrough.m` - documented end-to-end example script.
 - `docs/ROAST_README.md` - original ROAST README retained for upstream docs.
 

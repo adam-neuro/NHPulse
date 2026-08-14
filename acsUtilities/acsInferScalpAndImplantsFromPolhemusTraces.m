@@ -1,17 +1,17 @@
 function out = acsInferScalpAndImplantsFromPolhemusTraces(surfaceSource, traceInputs, varargin)
-% ACSINFERSCALPANDIMPLANTSFROMPOLHEMUSTRACES Combine multiple Polhemus traces.
+% ACSINFERSCALPANDIMPLANTSFROMPOLHEMUSTRACES Combine multiple saved digitizer traces.
 %
 % out = acsInferScalpAndImplantsFromPolhemusTraces(surfaceSource, traceInputs)
-% collects scalp and implant traces from several acsPolhemus sessions or
+% collects scalp and implant traces from several saved digitizer sessions or
 % acsVisualizePolhemusTraceOnHead outputs, then optionally builds a warped
 % scalp cache and implant keepout products. The intent is to treat each
-% Polhemus run as a noisy measurement of the same physical head.
+% digitizer run as a noisy measurement of the same physical head.
 %
 % surfaceSource may be a capMaker skin cache, layout, triangulation, or MAT
 % report accepted by acsWarpScalpSurfaceToPolhemusTrace.
 %
-% traceInputs may be a cell array of MAT/JSON filenames, Polhemus session
-% structs, registration structs, or trace QC structs. Raw Polhemus sessions
+% traceInputs may be a cell array of MAT/JSON filenames, digitizer session
+% structs, registration structs, or trace QC structs. Raw digitizer sessions
 % require modelFiducials so they can first be registered into the model frame.
 %
 % Name-value options:

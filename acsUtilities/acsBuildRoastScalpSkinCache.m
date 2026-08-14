@@ -718,7 +718,8 @@ end
 function fig = makeQcFigure(labels, headMask, TR, Vmask, opts, figVisible)
     fig = figure('Name', 'ROAST-derived scalp cache QC', ...
         'NumberTitle', 'off', 'Color', 'w', 'Visible', figVisible, ...
-        'Units', 'pixels', 'Position', [80 80 1500 860]);
+        'WindowStyle', 'normal', ...
+        'Units', 'pixels', 'Position', safeFigurePosition([1200 720]));
     annotation(fig, 'textbox', [0.02 0.955 0.96 0.035], ...
         'String', 'ROAST-derived scalp cache QC', ...
         'Interpreter', 'none', 'FontSize', 13, 'FontWeight', 'bold', ...
@@ -756,6 +757,25 @@ function fig = makeQcFigure(labels, headMask, TR, Vmask, opts, figVisible)
     if opts.verbose
         drawnow;
     end
+end
+
+function pos = safeFigurePosition(preferredSize)
+    margin = 80;
+    try
+        oldUnits = get(groot, 'Units');
+        set(groot, 'Units', 'pixels');
+        screen = get(groot, 'ScreenSize');
+        set(groot, 'Units', oldUnits);
+    catch
+        screen = [1 1 1280 800];
+    end
+    maxW = max(640, screen(3) - 2 * margin);
+    maxH = max(480, screen(4) - 2 * margin);
+    w = min(preferredSize(1), maxW);
+    h = min(preferredSize(2), maxH);
+    x = screen(1) + max(20, (screen(3) - w) / 2);
+    y = screen(2) + max(40, (screen(4) - h) / 2);
+    pos = round([x y w h]);
 end
 
 function sliceInd = chooseSliceIndices(mask)

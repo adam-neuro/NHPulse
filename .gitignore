@@ -22,6 +22,13 @@ poster_local/
 *.pos
 *.gcode
 
+# Raw 3D scan exports may contain identifiable/sensitive animal imagery
+*.ply
+*.obj
+*.e57
+*.las
+*.laz
+
 # MATLAB autosave/temp/cache products
 *.asv
 *.m~

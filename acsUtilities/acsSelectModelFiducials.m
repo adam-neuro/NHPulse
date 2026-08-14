@@ -10,7 +10,7 @@ function out = acsSelectModelFiducials(layoutOrMesh, varargin)
 %
 % Name-value options:
 %   fiducialLabels : labels to select, 'ask', or 'polhemus' [{'Nas','Lpa','Rpa'}]
-%   polhemusFile   : optional saved acsPolhemus file used for labels ['']
+%   polhemusFile   : optional saved digitizer point-set file used for labels ['']
 %   meshStage      : 'fullHead' or 'cap' ['fullHead']
 %   subjectId      : subject used for capMaker cache paths ['']
 %   capMakerInputFile : explicit NIfTI/DICOM input for capMaker ['']
