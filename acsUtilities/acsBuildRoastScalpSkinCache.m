@@ -19,6 +19,7 @@ function out = acsBuildRoastScalpSkinCache(sourceIn, varargin)
     opts = parseInputs(varargin{:});
     addLocalDependencies();
     [maskFile, t1File, source, opts] = resolveInputs(sourceIn, opts);
+    requireSpmRead();
 
     if isempty(opts.outputFile)
         opts.outputFile = defaultOutputFile(maskFile, opts.outputTag);
@@ -170,12 +171,22 @@ end
 
 function addLocalDependencies()
     repoRoot = fileparts(fileparts(mfilename('fullpath')));
-    addpath(repoRoot);
-    addpath(fullfile(repoRoot, 'acsUtilities'));
-    addpath(fullfile(repoRoot, 'capMaker', 'core'));
+    if exist('setNHPulsePath', 'file') ~= 2
+        addpath(repoRoot);
+    end
+    setNHPulsePath('repoRoot', repoRoot, 'verbose', false);
     spmDir = fullfile(repoRoot, 'lib', 'spm12');
     if exist(spmDir, 'dir') == 7
         addpath(spmDir);
+    end
+end
+
+function requireSpmRead()
+    if exist('spm_vol', 'file') ~= 2 || exist('spm_read_vols', 'file') ~= 2
+        error('acsBuildRoastScalpSkinCache:MissingSpm', ...
+            '%s', nhpulseMissingDependencyMessage('SPM', ...
+            'SPM is required to read ROAST/NIfTI label volumes.', ...
+            {'spm_vol', 'spm_read_vols'}));
     end
 end
 

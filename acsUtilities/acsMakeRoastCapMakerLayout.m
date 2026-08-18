@@ -237,22 +237,10 @@ end
 
 function addLocalDependencies()
     repoRoot = fileparts(fileparts(mfilename('fullpath')));
-    addpath(repoRoot);
-
-    spmDir = fullfile(repoRoot, 'lib', 'spm12');
-    if exist(spmDir, 'dir') == 7
-        addpath(spmDir);
+    if exist('setNHPulsePath', 'file') ~= 2
+        addpath(repoRoot);
     end
-
-    capGeometryDir = fullfile(repoRoot, 'capMaker', 'geometry');
-    if exist(capGeometryDir, 'dir') == 7
-        addpath(capGeometryDir);
-    end
-
-    capCoreDir = fullfile(repoRoot, 'capMaker', 'core');
-    if exist(capCoreDir, 'dir') == 7
-        addpath(capCoreDir);
-    end
+    setNHPulsePath('repoRoot', repoRoot, 'verbose', false);
 end
 
 function [t1File, maskFile] = resolveRoastInputs(roastSource, opts)
@@ -309,7 +297,9 @@ end
 function requireSpm()
     if exist('spm_vol', 'file') ~= 2 || exist('spm_read_vols', 'file') ~= 2
         error('acsMakeRoastCapMakerLayout:MissingSpm', ...
-            'SPM is required to read ROAST label volumes.');
+            '%s', nhpulseMissingDependencyMessage('SPM', ...
+            'SPM is required to read ROAST label volumes.', ...
+            {'spm_vol', 'spm_read_vols'}));
     end
 end
 

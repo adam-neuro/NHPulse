@@ -48,6 +48,16 @@ Known requirements for this path:
 - MATLAB graphics functions used by mesh and QC plots (`triangulation`,
   `isosurface`, `reducepatch`, `polyshape`).
 
+If the smoke test reports a missing dependency, run:
+
+```matlab
+setNHPulsePath;
+report = nhpulseCheckDependencies();
+```
+
+The printed report includes install links and the relevant `local.paths.json`
+field for configurable external dependencies.
+
 ## Full ROAST/tES Workflow
 
 The full workflow adds heavier dependencies and can take hours for real
@@ -63,6 +73,25 @@ subjects:
 - A configured local path file such as `local.paths.json` for
   machine-specific external executable and data locations. Create one with
   `nhpulseConfigureLocalPaths`, or edit the generated file by hand if needed.
+
+## Install Links
+
+- SPM: <https://www.fil.ion.ucl.ac.uk/spm/docs/installation/>
+- CVX: <https://cvxr.com/cvx/download/>
+- iso2mesh/TetGen: <https://github.com/fangq/iso2mesh/releases>
+- GetDP: <https://getdp.info/>
+- Gmsh: <https://gmsh.info/#Download>
+- MathWorks Image Processing Toolbox:
+  <https://www.mathworks.com/products/image-processing.html>
+- MathWorks Statistics and Machine Learning Toolbox:
+  <https://www.mathworks.com/products/statistics.html>
+
+The public repository currently does not vendor SPM, CVX, iso2mesh/TetGen,
+GetDP, or Gmsh. This keeps the first release smaller and avoids blending
+several third-party release/update cycles into the NHPulse source tree. Some
+of these packages are redistributable under GPL-family or related licenses,
+but each project has its own terms and bundled binaries; revisit vendoring only
+with explicit license notices and version pinning.
 
 ## Optional Components
 

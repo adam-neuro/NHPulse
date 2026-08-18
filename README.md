@@ -68,6 +68,15 @@ upstream ROAST README is preserved at [docs/ROAST_README.md](docs/ROAST_README.m
    computer. Generated data should stay outside git under `outputs/`, `data/`,
    or a configured external data root.
 
+   If a dependency is missing, run:
+
+   ```matlab
+   report = nhpulseCheckDependencies();
+   ```
+
+   The report includes install links and the relevant `local.paths.json` field
+   for dependencies such as SPM, CVX, iso2mesh/TetGen, GetDP, and Gmsh.
+
 4. Run the synthetic smoke test to verify that the installation can generate
    tiny ROAST-ready demo data and place a toy cap layout:
 
@@ -78,6 +87,10 @@ upstream ROAST README is preserved at [docs/ROAST_README.md](docs/ROAST_README.m
        'force', true, ...
        'showFigures', true);
    ```
+
+   The current smoke test uses SPM for NIfTI read/write. SPM is not bundled in
+   the public repo; if it is missing, the error and dependency report point to
+   the official SPM install page and the local config field to update.
 
 5. Work through [exampleWalkthrough.m](exampleWalkthrough.m) one cell at a time.
 

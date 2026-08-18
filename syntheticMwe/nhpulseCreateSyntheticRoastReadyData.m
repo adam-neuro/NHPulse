@@ -177,7 +177,10 @@ end
 
 function addLocalDependencies()
     repoRoot = fileparts(fileparts(mfilename('fullpath')));
-    addpath(repoRoot);
+    if exist('setNHPulsePath', 'file') ~= 2
+        addpath(repoRoot);
+    end
+    setNHPulsePath('repoRoot', repoRoot, 'verbose', false);
     spmDir = fullfile(repoRoot, 'lib', 'spm12');
     if exist(spmDir, 'dir') == 7
         addpath(spmDir);
@@ -188,8 +191,9 @@ function requireSpmWrite()
     if exist('spm_write_vol', 'file') ~= 2 || ...
             exist('spm_type', 'file') ~= 2
         error('nhpulseCreateSyntheticRoastReadyData:MissingSpm', ...
-            ['SPM is required to write the synthetic NIfTI files. ', ...
-             'Add lib/spm12 or another SPM install to the MATLAB path.']);
+            '%s', nhpulseMissingDependencyMessage('SPM', ...
+            'SPM is required to write the synthetic NIfTI files.', ...
+            {'spm_write_vol', 'spm_type'}));
     end
 end
 
