@@ -20,16 +20,21 @@
 % clear;  % Uncomment when intentionally starting a clean MATLAB session.
 % clc;
 
-repoRoot = pwd;
-addpath(repoRoot);
-addpath(fullfile(repoRoot, 'acsUtilities'));
-addpath(fullfile(repoRoot, 'capMaker', 'geometry'));
-addpath(fullfile(repoRoot, 'capMaker', 'core'));
-addpath(fullfile(repoRoot, 'syntheticMwe'));
+repoRoot = fileparts(mfilename('fullpath'));
+if isempty(repoRoot)
+    repoRoot = pwd;
+end
+
+setNHPulsePath('repoRoot', repoRoot);
+P = acsPaths();
+if isempty(P.configFile)
+    fprintf(['No local.paths.json found; using default repo-local outputs.\n', ...
+        'Run nhpulseConfigureLocalPaths if you want to save machine-specific paths.\n']);
+end
 
 cfg = struct();
 cfg.subjectId = 'nhpulseSyntheticDemo';
-cfg.outputDir = fullfile(repoRoot, 'outputs', 'syntheticMwe', cfg.subjectId);
+cfg.outputDir = fullfile(P.outputRoot, 'syntheticMwe', cfg.subjectId);
 cfg.nElectrodes = 8;
 cfg.force = true;
 cfg.showFigures = true;

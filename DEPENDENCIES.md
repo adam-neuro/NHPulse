@@ -21,7 +21,7 @@ who already have access to MATLAB.
 From the repository root:
 
 ```matlab
-addpath(pwd);
+setNHPulsePath;
 report = nhpulseCheckDependencies();
 ```
 
@@ -60,8 +60,9 @@ subjects:
 - GetDP for finite-element solves and lead-field generation.
 - Gmsh for ROAST/GetDP mesh and visualization workflows.
 - CVX for sparse tES montage optimization (`cvx_begin` and related commands).
-- A configured local path file such as `acsUtilities/local.paths.json` for
-  machine-specific external executable and data locations.
+- A configured local path file such as `local.paths.json` for
+  machine-specific external executable and data locations. Create one with
+  `nhpulseConfigureLocalPaths`, or edit the generated file by hand if needed.
 
 ## Optional Components
 

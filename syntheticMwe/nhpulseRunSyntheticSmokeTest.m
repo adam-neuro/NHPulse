@@ -127,11 +127,10 @@ end
 
 function addLocalDependencies()
     repoRoot = defaultRepoRoot();
-    addpath(fullfile(repoRoot, 'syntheticMwe'));
-    addpath(repoRoot);
-    addpath(fullfile(repoRoot, 'acsUtilities'));
-    addpath(fullfile(repoRoot, 'capMaker', 'core'));
-    addpath(fullfile(repoRoot, 'capMaker', 'geometry'));
+    if exist('setNHPulsePath', 'file') ~= 2
+        addpath(repoRoot);
+    end
+    setNHPulsePath('repoRoot', repoRoot, 'verbose', false);
     spmDir = fullfile(repoRoot, 'lib', 'spm12');
     if exist(spmDir, 'dir') == 7
         addpath(spmDir);

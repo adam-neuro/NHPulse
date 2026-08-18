@@ -1,7 +1,8 @@
 function P = acsPaths(varargin)
 % ACSPATHS Resolve local data/output roots for this project.
 %
-% P = acsPaths() returns a struct with project, Box, data, and output roots.
+% P = acsPaths() returns a struct with project, data/output roots, and
+% optional external dependency paths.
 %
 % Resolution order:
 %   1. Name-value overrides passed to this function
@@ -64,6 +65,46 @@ function P = acsPaths(varargin)
         getCfg(cfg, 'roastWorkRoot', ''), ...
         fullfile(P.outputRoot, 'roast_work'));
 
+    P.inpolyhedronPath = firstNonempty( ...
+        opts.inpolyhedronPath, ...
+        getenv('ACS_INPOLYHEDRON_PATH'), ...
+        getCfg(cfg, 'inpolyhedronPath', ''), ...
+        fullfile(utilRoot, 'inpolyhedron.m'));
+
+    P.spmPath = firstNonempty( ...
+        opts.spmPath, ...
+        getenv('ACS_SPM_PATH'), ...
+        getCfg(cfg, 'spmPath', ''));
+
+    P.iso2meshPath = firstNonempty( ...
+        opts.iso2meshPath, ...
+        getenv('ACS_ISO2MESH_PATH'), ...
+        getCfg(cfg, 'iso2meshPath', ''));
+
+    P.cvxPath = firstNonempty( ...
+        opts.cvxPath, ...
+        getenv('ACS_CVX_PATH'), ...
+        getCfg(cfg, 'cvxPath', ''));
+
+    P.niftiPath = firstNonempty( ...
+        opts.niftiPath, ...
+        getenv('ACS_NIFTI_PATH'), ...
+        getCfg(cfg, 'niftiPath', ''));
+
+    P.getdpExecutable = firstNonempty( ...
+        opts.getdpExecutable, ...
+        getenv('ACS_GETDP_EXECUTABLE'), ...
+        getCfg(cfg, 'getdpExecutable', ''));
+
+    P.gmshExecutable = firstNonempty( ...
+        opts.gmshExecutable, ...
+        getenv('ACS_GMSH_EXECUTABLE'), ...
+        getCfg(cfg, 'gmshExecutable', ''));
+
+    P.extraMatlabPaths = firstNonemptyCell( ...
+        opts.extraMatlabPaths, ...
+        getCfgCell(cfg, 'extraMatlabPaths', {}));
+
     P.subjectOutputRoot = fullfile(P.outputRoot, 'subjects');
     P.templateOutputRoot = fullfile(P.outputRoot, 'templates');
 
@@ -80,7 +121,15 @@ function opts = parseInputs(varargin)
         'boxRoot', '', ...
         'dataRoot', '', ...
         'outputRoot', '', ...
-        'roastWorkRoot', '');
+        'roastWorkRoot', '', ...
+        'inpolyhedronPath', '', ...
+        'spmPath', '', ...
+        'iso2meshPath', '', ...
+        'cvxPath', '', ...
+        'niftiPath', '', ...
+        'getdpExecutable', '', ...
+        'gmshExecutable', '', ...
+        'extraMatlabPaths', {{}});
 
     if mod(numel(varargin), 2) ~= 0
         error('acsPaths:BadInputs', 'Use name-value pairs.');
@@ -88,21 +137,45 @@ function opts = parseInputs(varargin)
 
     for i = 1:2:numel(varargin)
         key = char(varargin{i});
-        val = char(varargin{i + 1});
+        rawVal = varargin{i + 1};
         switch lower(key)
             case 'configfile'
-                opts.configFile = expandUserPath(val);
+                opts.configFile = expandUserPath(rawVal);
             case 'boxroot'
-                opts.boxRoot = expandUserPath(val);
+                opts.boxRoot = expandUserPath(rawVal);
             case 'dataroot'
-                opts.dataRoot = expandUserPath(val);
+                opts.dataRoot = expandUserPath(rawVal);
             case 'outputroot'
-                opts.outputRoot = expandUserPath(val);
+                opts.outputRoot = expandUserPath(rawVal);
             case 'roastworkroot'
-                opts.roastWorkRoot = expandUserPath(val);
+                opts.roastWorkRoot = expandUserPath(rawVal);
+            case 'inpolyhedronpath'
+                opts.inpolyhedronPath = expandUserPath(rawVal);
+            case 'spmpath'
+                opts.spmPath = expandUserPath(rawVal);
+            case 'iso2meshpath'
+                opts.iso2meshPath = expandUserPath(rawVal);
+            case 'cvxpath'
+                opts.cvxPath = expandUserPath(rawVal);
+            case 'niftipath'
+                opts.niftiPath = expandUserPath(rawVal);
+            case 'getdpexecutable'
+                opts.getdpExecutable = expandUserPath(rawVal);
+            case 'gmshexecutable'
+                opts.gmshExecutable = expandUserPath(rawVal);
+            case 'extramatlabpaths'
+                opts.extraMatlabPaths = normalizePathList(rawVal);
             otherwise
                 error('acsPaths:UnknownOption', 'Unknown option: %s', key);
         end
+    end
+end
+
+function val = getCfgCell(cfg, fieldName, defaultVal)
+    if isstruct(cfg) && isfield(cfg, fieldName) && ~isempty(cfg.(fieldName))
+        val = normalizePathList(cfg.(fieldName));
+    else
+        val = defaultVal;
     end
 end
 
@@ -172,6 +245,34 @@ function val = firstNonempty(varargin)
             val = expandUserPath(val);
             return;
         end
+    end
+end
+
+function val = firstNonemptyCell(varargin)
+    val = {};
+    for i = 1:nargin
+        item = varargin{i};
+        if ~isempty(item)
+            val = normalizePathList(item);
+            return;
+        end
+    end
+end
+
+function paths = normalizePathList(paths)
+    if isempty(paths)
+        paths = {};
+        return;
+    end
+    if ischar(paths) || isstring(paths)
+        paths = cellstr(paths);
+    end
+    if ~iscell(paths)
+        error('acsPaths:BadPathList', ...
+            'extraMatlabPaths must be a character vector, string array, or cell array.');
+    end
+    for i = 1:numel(paths)
+        paths{i} = expandUserPath(paths{i});
     end
 end
 

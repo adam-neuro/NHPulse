@@ -6,17 +6,40 @@ data products out of the source tree.
 ## Local Paths
 
 Path resolution is centralized in `acsPaths.m` and `acsSubjectPath.m`.
-They check, in order:
+For a fresh clone, run this from the repository root:
+
+```matlab
+setNHPulsePath;
+P = nhpulseConfigureLocalPaths('profile', 'syntheticMwe');
+```
+
+This creates `local.paths.json` with demo-friendly defaults. To choose local
+folders with dialogs, run:
+
+```matlab
+P = nhpulseConfigureLocalPaths('profile', 'syntheticMwe', 'useGui', true);
+```
+
+`acsPaths` checks, in order:
 
 1. Function name-value overrides.
 2. Environment variables such as `ACS_BOX_ROOT`, `ACS_DATA_ROOT`, and
    `ACS_OUTPUT_ROOT`.
-3. A local `local.paths.json` file.
+3. A local `local.paths.json` file in the repository root or `acsUtilities/`.
 4. Common Box locations on Windows and macOS.
 
-`local.paths.json` is ignored by git. Copy `local.paths.example.json` to
-`local.paths.json` and edit it for each computer if the automatic Box
-detection is not enough.
+`local.paths.json` is ignored by git. You can edit it directly after it is
+generated, or use `acsUtilities/local.paths.example.json` as a reference.
+The main fields are:
+
+- `outputRoot`: generated files, QC figures, lead fields, and STL products.
+- `dataRoot`: optional private source data such as real MRI or scan exports.
+- `roastWorkRoot`: scratch/work products from long ROAST jobs.
+- `spmPath`, `iso2meshPath`, `cvxPath`, `niftiPath`: optional external
+  MATLAB dependency folders.
+- `getdpExecutable`, `gmshExecutable`: optional solver/viewer executable paths.
+- `inpolyhedronPath`: mesh voxelization helper; the public repo includes this
+  under `acsUtilities/inpolyhedron.m`.
 
 Subject aliases live in the per-subject `aliases` array in
 `local.paths.json`. Use a canonical subject key that is a valid MATLAB
@@ -1026,9 +1049,10 @@ strapPreview = acsPreviewChinStrapGeometry( ...
     'interactive', true);
 ```
 
-The full STL build uses `inpolyhedron` during voxel fusion/carving. If that
-utility is not already on the MATLAB path, `acsBuildCapMakerManufacturingStl`
-will try `inpolyhedronPath`, `ACS_INPOLYHEDRON_PATH`, and entries in
+The full STL build uses `inpolyhedron` during voxel fusion/carving. The public
+repo includes `acsUtilities/inpolyhedron.m`, and `setNHPulsePath` adds it with
+the rest of the utilities. If you use a different copy, set
+`inpolyhedronPath`, `ACS_INPOLYHEDRON_PATH`, or an entry in
 `local.paths.json`. A typical local config entry is:
 
 ```json

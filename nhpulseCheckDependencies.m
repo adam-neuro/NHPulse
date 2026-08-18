@@ -18,6 +18,14 @@ function report = nhpulseCheckDependencies(varargin)
     if isempty(repoRoot)
         repoRoot = pwd;
     end
+    P = struct();
+    if exist('acsPaths', 'file') == 2
+        try
+            P = acsPaths();
+        catch
+            P = struct();
+        end
+    end
 
     products = ver;
     report = struct();
@@ -41,9 +49,9 @@ function report = nhpulseCheckDependencies(varargin)
             'Required for sparse tES optimization routines.');
         dependencyItem('iso2mesh/TetGen', false, hasFunction('surf2mesh') || hasFunction('vol2mesh'), ...
             'Required for full ROAST mesh generation; often bundled/managed through ROAST.');
-        dependencyItem('GetDP', false, hasGetDpExecutable(repoRoot), ...
+        dependencyItem('GetDP', false, hasGetDpExecutable(repoRoot, P), ...
             'Required for full finite-element solves and lead-field generation.');
-        dependencyItem('Gmsh', false, hasGmshExecutable(repoRoot), ...
+        dependencyItem('Gmsh', false, hasGmshExecutable(repoRoot, P), ...
             'Used by ROAST/GetDP visualization and mesh workflows.');
         dependencyItem('NIfTI utilities', false, hasFunction('niftiread') || hasFunction('load_nii'), ...
             'Helpful fallback utilities; most active paths use SPM for NIfTI I/O.')
@@ -92,16 +100,23 @@ function tf = hasFunction(functionName)
         exist(functionName, 'class') == 8;
 end
 
-function tf = hasGetDpExecutable(repoRoot)
+function tf = hasGetDpExecutable(repoRoot, P)
     names = {'getdp', 'getdp.exe'};
-    tf = anyExecutableOnPath(names) || ...
+    tf = hasConfiguredExecutable(P, 'getdpExecutable') || ...
+        anyExecutableOnPath(names) || ...
         any(cellfun(@(name) exist(fullfile(repoRoot, 'lib', 'getdp-3.2.0', 'bin', name), 'file') == 2, names));
 end
 
-function tf = hasGmshExecutable(repoRoot)
+function tf = hasGmshExecutable(repoRoot, P)
     names = {'gmsh', 'gmsh.exe'};
-    tf = anyExecutableOnPath(names) || ...
+    tf = hasConfiguredExecutable(P, 'gmshExecutable') || ...
+        anyExecutableOnPath(names) || ...
         any(cellfun(@(name) exist(fullfile(repoRoot, 'lib', 'gmsh', name), 'file') == 2, names));
+end
+
+function tf = hasConfiguredExecutable(P, fieldName)
+    tf = isstruct(P) && isfield(P, fieldName) && ...
+        ~isempty(P.(fieldName)) && exist(P.(fieldName), 'file') == 2;
 end
 
 function tf = anyExecutableOnPath(names)

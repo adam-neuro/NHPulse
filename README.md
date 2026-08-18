@@ -43,26 +43,38 @@ upstream ROAST README is preserved at [docs/ROAST_README.md](docs/ROAST_README.m
 ## Quick Start
 
 1. Open MATLAB from the repository root.
-2. Add the repository and helper folders to the path:
+2. Add NHPulse folders to the MATLAB path:
 
    ```matlab
-   repoRoot = pwd;
-   addpath(repoRoot);
-   addpath(fullfile(repoRoot, 'acsUtilities'));
-   addpath(fullfile(repoRoot, 'capMaker', 'geometry'));
-   addpath(fullfile(repoRoot, 'capMaker', 'core'));
+   setNHPulsePath;
    ```
 
-3. Configure local machine paths using `acsUtilities/local.paths.json`.
-   Generated data should live outside git under `outputs/`, `data/`, or a
-   configured external data root.
+3. Optional but recommended: create a local machine-path config. This writes
+   `local.paths.json`, which is ignored by git. For the synthetic walkthrough,
+   the defaults are enough:
+
+   ```matlab
+   P = nhpulseConfigureLocalPaths('profile', 'syntheticMwe');
+   ```
+
+   To choose folders with dialogs instead of accepting defaults:
+
+   ```matlab
+   P = nhpulseConfigureLocalPaths('profile', 'syntheticMwe', 'useGui', true);
+   ```
+
+   The config file records where generated outputs, private source data, ROAST
+   scratch products, and optional external MATLAB dependencies live on a given
+   computer. Generated data should stay outside git under `outputs/`, `data/`,
+   or a configured external data root.
+
 4. Run the synthetic smoke test to verify that the installation can generate
    tiny ROAST-ready demo data and place a toy cap layout:
 
    ```matlab
-   addpath(fullfile(repoRoot, 'syntheticMwe'));
+   if ~exist('P', 'var'), P = acsPaths(); end
    smokeOut = nhpulseRunSyntheticSmokeTest( ...
-       fullfile(repoRoot, 'outputs', 'syntheticMwe', 'nhpulseSyntheticSmoke'), ...
+       fullfile(P.outputRoot, 'syntheticMwe', 'nhpulseSyntheticSmoke'), ...
        'force', true, ...
        'showFigures', true);
    ```
@@ -108,6 +120,8 @@ In brief, a public release should include:
 - `capMaker/` - cap geometry, voxel/mesh, and STL helpers.
 - `syntheticMwe/` - synthetic data generators and smoke-test utilities.
 - `exampleWalkthrough.m` - documented end-to-end example script.
+- `setNHPulsePath.m` and `nhpulseConfigureLocalPaths.m` - reviewer-friendly
+  setup helpers for MATLAB paths and machine-local folders.
 - `docs/ROAST_README.md` - original ROAST README retained for upstream docs.
 
 ## License

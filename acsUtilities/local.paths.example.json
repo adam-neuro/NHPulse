@@ -1,15 +1,23 @@
 {
   "boxRoot": "",
-  "dataRoot": "/path/to/project/data",
-  "outputRoot": "/path/to/project/outputs",
-  "inpolyhedronPath": "",
+  "dataRoot": "/path/to/NHPulse/data",
+  "outputRoot": "/path/to/NHPulse/outputs",
+  "roastWorkRoot": "/path/to/NHPulse/outputs/roast_work",
+  "inpolyhedronPath": "/path/to/NHPulse/acsUtilities/inpolyhedron.m",
+  "spmPath": "/path/to/spm12",
+  "iso2meshPath": "/path/to/iso2mesh",
+  "cvxPath": "/path/to/cvx",
+  "niftiPath": "/path/to/NIFTI_20110921",
+  "getdpExecutable": "/path/to/getdp",
+  "gmshExecutable": "/path/to/gmsh",
+  "extraMatlabPaths": [],
   "subjects": {
-    "demoSubject": {
-      "aliases": ["demo"],
-      "root": "/path/to/project/data/demoSubject",
-      "mprageInitial": "/path/to/project/data/demoSubject/dicom_or_nifti_input",
-      "anatomyWork": "/path/to/project/outputs/subjects/demoSubject/anatomy",
-      "segmentationWork": "/path/to/project/outputs/subjects/demoSubject/segmentation"
+    "nhpulseSyntheticDemo": {
+      "aliases": ["demo", "synthetic"],
+      "root": "/path/to/NHPulse/outputs/syntheticMwe/nhpulseSyntheticDemo",
+      "mprageInitial": "/path/to/NHPulse/outputs/syntheticMwe/nhpulseSyntheticDemo/nhpulseSyntheticDemo_T1.nii",
+      "anatomyWork": "/path/to/NHPulse/outputs/syntheticMwe/nhpulseSyntheticDemo/anatomy",
+      "segmentationWork": "/path/to/NHPulse/outputs/syntheticMwe/nhpulseSyntheticDemo/segmentation"
     }
   }
 }
