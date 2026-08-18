@@ -20,7 +20,8 @@ function message = nhpulseMissingDependencyMessage(name, context, missingItems)
     end
 
     if ~isempty(info.installUrl)
-        lines{end + 1} = sprintf('Install/download: %s', info.installUrl); %#ok<AGROW>
+        lines{end + 1} = sprintf('Install/download: %s', ...
+            nhpulseCommandWindowLink(info.installUrl, info.installUrl)); %#ok<AGROW>
     end
 
     if ~isempty(info.configField)

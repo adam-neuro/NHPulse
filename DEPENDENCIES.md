@@ -78,7 +78,7 @@ subjects:
 
 - SPM: <https://www.fil.ion.ucl.ac.uk/spm/docs/installation/>
 - CVX: <https://cvxr.com/cvx/download/>
-- iso2mesh/TetGen: <https://github.com/fangq/iso2mesh/releases>
+- iso2mesh/TetGen: <https://sourceforge.net/projects/iso2mesh/files/iso2mesh/>
 - GetDP: <https://getdp.info/>
 - Gmsh: <https://gmsh.info/#Download>
 - MathWorks Image Processing Toolbox:
@@ -86,12 +86,31 @@ subjects:
 - MathWorks Statistics and Machine Learning Toolbox:
   <https://www.mathworks.com/products/statistics.html>
 
+`niftiPath` can remain blank when NIfTI functions are already available from
+MATLAB/SPM or another folder on the MATLAB path. It is only needed when you
+want NHPulse to add an extra NIfTI utility folder automatically.
+
 The public repository currently does not vendor SPM, CVX, iso2mesh/TetGen,
 GetDP, or Gmsh. This keeps the first release smaller and avoids blending
 several third-party release/update cycles into the NHPulse source tree. Some
 of these packages are redistributable under GPL-family or related licenses,
 but each project has its own terms and bundled binaries; revisit vendoring only
 with explicit license notices and version pinning.
+
+## macOS CVX MEX Troubleshooting
+
+If `cvx_setup` fails on macOS with an "Invalid MEX-file" or "library load
+disallowed by system policy" message, the downloaded CVX folder may have a
+Gatekeeper quarantine attribute. From Terminal, run:
+
+```bash
+xattr -dr com.apple.quarantine /path/to/cvx
+```
+
+Then restart MATLAB, add the CVX folder to the MATLAB path, and rerun
+`cvx_setup`. If `savepath` fails during CVX setup, that usually only means
+MATLAB could not write its global `pathdef.m`; configure CVX through
+`nhpulseConfigureLocalPaths` or add it from your own `startup.m`.
 
 ## Optional Components
 

@@ -164,7 +164,8 @@ function printReport(report)
         fprintf('  Missing dependency help:\n');
         for i = 1:numel(missing)
             item = missing(i);
-            fprintf('    %s: %s\n', item.name, item.installUrl);
+            fprintf('    %s: %s\n', item.name, ...
+                nhpulseCommandWindowLink(item.installUrl, item.installUrl));
             if ~isempty(item.configField)
                 fprintf('      local.paths.json field: %s\n', item.configField);
             end

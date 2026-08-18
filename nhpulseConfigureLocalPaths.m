@@ -185,6 +185,14 @@ function cfg = editConfigWithDialogs(cfg, opts)
     cfg.inpolyhedronPath = chooseFile(cfg.inpolyhedronPath, ...
         'inpolyhedron.m', ...
         'Select bundled or external inpolyhedron.m for mesh voxelization.');
+    cfg.getdpExecutable = chooseExecutable(cfg.getdpExecutable, ...
+        'GetDP executable', ...
+        ['Optional executable used by full ROAST finite-element solves. ', ...
+         'This is not needed for the synthetic smoke test.']);
+    cfg.gmshExecutable = chooseExecutable(cfg.gmshExecutable, ...
+        'Gmsh executable', ...
+        ['Optional executable used by ROAST/Gmsh mesh visualization and ', ...
+         'support workflows. This is not needed for the synthetic smoke test.']);
 
     subjectKey = matlab.lang.makeValidName(opts.subjectId);
     if isfield(cfg, 'subjects') && isfield(cfg.subjects, subjectKey)
@@ -253,6 +261,40 @@ function fileName = chooseFile(currentValue, titleText, helpText)
     end
 end
 
+function fileName = chooseExecutable(currentValue, titleText, helpText)
+    currentValue = normalizePath(currentValue);
+    startFolder = pwd;
+    displayValue = currentValue;
+    if ~isempty(currentValue)
+        if exist(currentValue, 'dir') == 7
+            startFolder = currentValue;
+        elseif exist(fileparts(currentValue), 'dir') == 7
+            startFolder = fileparts(currentValue);
+        end
+    else
+        displayValue = '<blank>';
+    end
+    answer = questdlg(sprintf('%s\n\nCurrent/default:\n%s', helpText, displayValue), ...
+        titleText, 'Keep', 'Choose...', 'Blank', 'Keep');
+    if isempty(answer) || strcmp(answer, 'Keep')
+        fileName = currentValue;
+    elseif strcmp(answer, 'Blank')
+        fileName = '';
+    else
+        if ispc
+            filterSpec = {'*.exe', 'Executables (*.exe)'; '*.*', 'All files'};
+        else
+            filterSpec = {'*', 'All files'};
+        end
+        [f, p] = uigetfile(filterSpec, titleText, startFolder);
+        if isequal(f, 0)
+            fileName = currentValue;
+        else
+            fileName = fullfile(p, f);
+        end
+    end
+end
+
 function existing = loadExistingConfig(configFile)
     existing = struct();
     if exist(configFile, 'file') ~= 2
@@ -309,7 +351,10 @@ function printSummary(configFile, cfg, wroteFile)
     fprintf('  inpolyhedron    bundled voxelization helper:     %s\n', cfg.inpolyhedronPath);
     fprintf('  spmPath         SPM MATLAB folder, if external:  %s\n', cfg.spmPath);
     fprintf('  iso2meshPath    iso2mesh folder, if external:    %s\n', cfg.iso2meshPath);
-    fprintf('  cvxPath         CVX folder, for sparse solves:   %s\n\n', cfg.cvxPath);
+    fprintf('  cvxPath         CVX folder, for sparse solves:   %s\n', cfg.cvxPath);
+    fprintf('  niftiPath       optional NIfTI helper folder:     %s\n', cfg.niftiPath);
+    fprintf('  getdpExecutable full ROAST solve executable:      %s\n', cfg.getdpExecutable);
+    fprintf('  gmshExecutable  ROAST/Gmsh executable:            %s\n\n', cfg.gmshExecutable);
 end
 
 function folderName = functionFolder(functionName)
