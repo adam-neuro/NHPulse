@@ -42,6 +42,9 @@ Known requirements for this path:
 - MATLAB.
 - SPM on the MATLAB path for NIfTI read/write functions such as `spm_vol`,
   `spm_read_vols`, `spm_write_vol`, and `spm_type`.
+  NHPulse includes SPM-backed compatibility wrappers for ROAST's legacy
+  `load_untouch_nii` and `save_untouch_nii` calls, so reviewers do not need
+  a separate NIfTI toolbox for the walkthrough.
 - MATLAB Image Processing Toolbox for morphology, connected components, and
   volume smoothing (`bwconncomp`, `imdilate`, `imerode`, `imreconstruct`,
   `imgaussfilt3`, `imfill`).
@@ -122,9 +125,10 @@ one of the mirrored/package routes or contact the data maintainers.
 - MathWorks Statistics and Machine Learning Toolbox:
   <https://www.mathworks.com/products/statistics.html>
 
-`niftiPath` can remain blank when NIfTI functions are already available from
-MATLAB/SPM or another folder on the MATLAB path. It is only needed when you
-want NHPulse to add an extra NIfTI utility folder automatically.
+`niftiPath` can remain blank for normal NHPulse/ROAST use because the
+repository includes SPM-backed `load_untouch_nii` and `save_untouch_nii`
+compatibility wrappers. It is only needed when you want NHPulse to add a
+separate legacy NIfTI utility folder automatically.
 
 The public repository currently does not vendor SPM, CVX, iso2mesh/TetGen,
 GetDP, or Gmsh. This keeps the first release smaller and avoids blending
