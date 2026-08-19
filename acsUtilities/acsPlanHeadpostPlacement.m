@@ -22,6 +22,7 @@ function out = acsPlanHeadpostPlacement(traceIn, surfaceSource, varargin)
 %   meshFile              : STL headpost mesh [simplified headpost STL]
 %   meshOriginMode        : passed to acsInspectHeadpostGeometry ['autoPostBase']
 %   meshOriginMm          : manual STL local origin [[]]
+%   meshScale             : isotropic scale applied after origin subtraction [1]
 %   headpostRefineMaxEdgeMm : shared-edge mesh refinement before bending [2]
 %   headpostRefineMaxIterations : max refinement passes [5]
 %   objectName            : Polhemus trace name ['headpost']
@@ -152,6 +153,7 @@ function opts = parseInputs(varargin)
     addParameter(p, 'meshOriginMode', 'autoPostBase', @(x) ischar(x) || isstring(x));
     addParameter(p, 'meshOriginMm', [], ...
         @(x) isempty(x) || (isnumeric(x) && numel(x) == 3));
+    addParameter(p, 'meshScale', 1, @isPositiveScalar);
     addParameter(p, 'headpostRefineMaxEdgeMm', 2, @(x) isempty(x) || ...
         (isnumeric(x) && isscalar(x) && isfinite(x) && x > 0));
     addParameter(p, 'headpostRefineMaxIterations', 5, @(x) isnumeric(x) && ...
@@ -193,6 +195,7 @@ function opts = parseInputs(varargin)
     if ~isempty(opts.meshOriginMm)
         opts.meshOriginMm = double(opts.meshOriginMm(:)');
     end
+    opts.meshScale = double(opts.meshScale);
     if ~isempty(opts.headpostRefineMaxEdgeMm)
         opts.headpostRefineMaxEdgeMm = double(opts.headpostRefineMaxEdgeMm);
     end
@@ -405,13 +408,14 @@ function headpost = readHeadpostMesh(opts)
         meshQc = acsInspectHeadpostGeometry(opts.meshFile, args{:});
     end
     TRraw = ensureTri(meshQc.mesh.TR);
-    Vlocal = double(TRraw.Points) - double(meshQc.originMm);
+    Vlocal = (double(TRraw.Points) - double(meshQc.originMm)) .* opts.meshScale;
     TRlocalRaw = triangulation(TRraw.ConnectivityList, Vlocal);
     [TRlocal, refineInfo] = refineTriByMaxEdge(TRlocalRaw, ...
         opts.headpostRefineMaxEdgeMm, opts.headpostRefineMaxIterations);
     headpost = struct();
     headpost.meshFile = meshQc.meshFile;
     headpost.originMm = meshQc.originMm;
+    headpost.meshScale = opts.meshScale;
     headpost.originInfo = meshQc.originInfo;
     headpost.coordinateConvention = meshQc.coordinateConvention;
     headpost.TRraw = TRraw;

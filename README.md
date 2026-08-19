@@ -102,8 +102,9 @@ upstream ROAST README is preserved at [docs/ROAST_README.md](docs/ROAST_README.m
 
 5. Work through [exampleWalkthrough.m](exampleWalkthrough.m) one cell at a time.
    The walkthrough expands the smoke-test path into documented cells, uses
-   dummy lead fields for a fast tES layout-growth demonstration, and ends by
-   writing small synthetic dual-material cap STLs.
+   interactive picker/refinement GUIs by default, uses dummy lead fields for a
+   fast tES layout-growth demonstration, and ends by writing small synthetic
+   fit-check and dual-material cap STLs.
 
 The walkthrough is intentionally cell-based because several steps are
 interactive, slow, or both. ROAST/GetDP lead-field solves can take hours; the

@@ -33,9 +33,9 @@ test.
 
 The public synthetic walkthrough in `exampleWalkthrough.m` is the lowest-friction
 reviewer entry point. It generates a tiny synthetic ROAST-ready T1/mask pair,
-builds a scalp cache, exports a quick PLA fit-check STL, exercises ear/implant
-exclusion bookkeeping, grows a tES candidate layout with dummy lead fields,
-interleaves EEG sites, and writes small dual-material cap STLs.
+builds a scalp cache, exercises ear/painted/implant exclusion bookkeeping,
+exports a quick PLA fit-check STL, grows a tES candidate layout with dummy
+lead fields, interleaves EEG sites, and writes small dual-material cap STLs.
 
 Known requirements for this path:
 

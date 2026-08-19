@@ -256,14 +256,18 @@ function [labels, t1, geometry] = makeSyntheticVolume(opts)
     nose = ellipsoidValue(X, Y - 35, Z + 3, [9 15 8]) <= 1 & Y > 21;
     leftEar = ellipsoidValue(X + 32, Y + 2, Z + 1, [6 10 12]) <= 1;
     rightEar = ellipsoidValue(X - 32, Y + 2, Z + 1, [6 10 12]) <= 1;
-    outerHead = head | nose | leftEar | rightEar;
+    neck = ellipsoidValue(X, Y + 22, Z + 27, [16 14 14]) <= 1 & ...
+        Y < -8 & Z < -13;
+    outerHead = head | nose | leftEar | rightEar | neck;
 
     labels = uint8(6 .* ones(dims));
     labels(outerHead) = uint8(5);
 
     bone = ellipsoidValue(X, Y + 4, Z + 1, [27 35 24]) <= 1;
     noseBone = ellipsoidValue(X, Y - 31, Z + 3, [5.5 8 4.5]) <= 1 & Y > 21;
-    labels(bone | noseBone) = uint8(4);
+    neckBone = ellipsoidValue(X, Y + 20, Z + 25, [10 8 8]) <= 1 & ...
+        Y < -10 & Z < -16;
+    labels(bone | noseBone | neckBone) = uint8(4);
 
     csf = ellipsoidValue(X, Y + 4, Z + 1, [21 27 19]) <= 1;
     gray = ellipsoidValue(X, Y + 4, Z + 1, [19 24 17]) <= 1;
@@ -289,6 +293,7 @@ function [labels, t1, geometry] = makeSyntheticVolume(opts)
     geometry.centerMm = centerMm;
     geometry.coordinateFrame = 'roastVoxelScaledMm';
     geometry.headAxesMm = headAxes;
+    geometry.neckCenterMm = centerMm + [0 -22 -27];
     geometry.labelNames = {'white', 'gray', 'CSF', 'bone', 'skin', 'air'};
     geometry.demoTargetMm = centerMm + [8 8 9];
     geometry.demoTargetVoxel = max([1 1 1], ...

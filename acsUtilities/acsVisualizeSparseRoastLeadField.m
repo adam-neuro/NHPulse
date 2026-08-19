@@ -218,7 +218,25 @@ end
 function addDependencies()
     repoRoot = fileparts(fileparts(mfilename('fullpath')));
     if exist('qmeshcut', 'file') ~= 2 || exist('spm_vol', 'file') ~= 2
-        addpath(genpath(fullfile(repoRoot, 'lib')));
+        addKnownDependencyPaths(repoRoot);
+    end
+end
+
+function addKnownDependencyPaths(repoRoot)
+    if exist('setNHPulsePath', 'file') ~= 2
+        addpath(repoRoot);
+    end
+    if exist('setNHPulsePath', 'file') == 2
+        setNHPulsePath('repoRoot', repoRoot, 'verbose', false);
+        return;
+    end
+    libRoot = fullfile(repoRoot, 'lib');
+    knownFolders = {'spm12', 'spm', 'cvx', 'iso2mesh', 'NIFTI_20110921'};
+    for k = 1:numel(knownFolders)
+        folder = fullfile(libRoot, knownFolders{k});
+        if exist(folder, 'dir') == 7
+            addpath(folder, '-begin');
+        end
     end
 end
 

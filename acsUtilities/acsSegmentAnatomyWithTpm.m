@@ -1827,8 +1827,23 @@ function addRoastDependencies(P)
     if exist(spmDir, 'dir') ~= 7
         error('acsSegmentAnatomyWithTpm:MissingSpm', 'SPM folder not found: %s', spmDir);
     end
-    addpath(genpath(libDir));
     addpath(P.repoRoot);
+    if exist('setNHPulsePath', 'file') == 2
+        setNHPulsePath('repoRoot', P.repoRoot, 'verbose', false);
+    else
+        addpath(spmDir, '-begin');
+        addOptionalDependencyFolder(libDir, 'spm');
+        addOptionalDependencyFolder(libDir, 'iso2mesh');
+        addOptionalDependencyFolder(libDir, 'cvx');
+        addOptionalDependencyFolder(libDir, 'NIFTI_20110921');
+    end
+end
+
+function addOptionalDependencyFolder(libDir, folderName)
+    folder = fullfile(libDir, folderName);
+    if exist(folder, 'dir') == 7
+        addpath(folder, '-begin');
+    end
 end
 
 function ensureDir(pathIn)

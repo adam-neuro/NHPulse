@@ -28,7 +28,9 @@ function addedPaths = setNHPulsePath(varargin)
         fullfile(repoRoot, 'capMaker', 'wrappers'), ...
         fullfile(repoRoot, 'syntheticMwe'), ...
         fullfile(repoRoot, 'lib', 'spm'), ...
-        fullfile(repoRoot, 'lib', 'spm12'), ...
+        fullfile(repoRoot, 'lib', 'spm12')};
+
+    recursiveCandidatePaths = { ...
         fullfile(repoRoot, 'lib', 'cvx'), ...
         fullfile(repoRoot, 'lib', 'iso2mesh'), ...
         fullfile(repoRoot, 'lib', 'NIFTI_20110921')};
@@ -36,6 +38,10 @@ function addedPaths = setNHPulsePath(varargin)
     addedPaths = {};
     for i = 1:numel(candidatePaths)
         addedPaths = addExistingFolder(candidatePaths{i}, addedPaths);
+    end
+    for i = 1:numel(recursiveCandidatePaths)
+        addedPaths = addExistingFolderTree( ...
+            recursiveCandidatePaths{i}, addedPaths);
     end
 
     if opts.includeExternal && exist('acsPaths', 'file') == 2
@@ -90,12 +96,20 @@ function opts = parseInputs(varargin)
 end
 
 function addedPaths = addExternalMatlabPaths(P, addedPaths)
-    scalarFields = {'spmPath', 'iso2meshPath', 'cvxPath', ...
-        'niftiPath', 'inpolyhedronPath'};
-    for i = 1:numel(scalarFields)
-        fieldName = scalarFields{i};
+    topLevelFields = {'spmPath', 'inpolyhedronPath'};
+    for i = 1:numel(topLevelFields)
+        fieldName = topLevelFields{i};
         if isfield(P, fieldName)
             addedPaths = addPathOrContainingFolder(P.(fieldName), addedPaths);
+        end
+    end
+
+    recursiveFields = {'iso2meshPath', 'cvxPath', 'niftiPath'};
+    for i = 1:numel(recursiveFields)
+        fieldName = recursiveFields{i};
+        if isfield(P, fieldName)
+            addedPaths = addFolderOrContainingFolderTree( ...
+                P.(fieldName), addedPaths);
         end
     end
 
@@ -109,6 +123,18 @@ function addedPaths = addExternalMatlabPaths(P, addedPaths)
                 addedPaths = addPathOrContainingFolder(extraPaths{i}, addedPaths);
             end
         end
+    end
+end
+
+function addedPaths = addFolderOrContainingFolderTree(pathIn, addedPaths)
+    pathIn = normalizePath(pathIn);
+    if isempty(pathIn)
+        return;
+    end
+    if exist(pathIn, 'dir') == 7
+        addedPaths = addExistingFolderTree(pathIn, addedPaths);
+    elseif exist(pathIn, 'file') == 2
+        addedPaths = addExistingFolderTree(fileparts(pathIn), addedPaths);
     end
 end
 
@@ -133,6 +159,48 @@ function addedPaths = addExistingFolder(folderName, addedPaths)
         addpath(folderName, '-begin');
     end
     addedPaths{end + 1, 1} = folderName; %#ok<AGROW>
+end
+
+function addedPaths = addExistingFolderTree(rootFolder, addedPaths)
+    rootFolder = normalizePath(rootFolder);
+    if isempty(rootFolder) || exist(rootFolder, 'dir') ~= 7
+        return;
+    end
+    stack = {rootFolder};
+    seen = {};
+    while ~isempty(stack)
+        folderName = stack{end};
+        stack(end) = [];
+        folderKey = canonicalizeLight(folderName);
+        if isempty(folderKey) || any(strcmpi(folderKey, seen))
+            continue;
+        end
+        seen{end + 1, 1} = folderKey; %#ok<AGROW>
+        if exist(folderName, 'dir') ~= 7
+            continue;
+        end
+        addedPaths = addExistingFolder(folderName, addedPaths);
+        try
+            kids = dir(folderName);
+        catch
+            continue;
+        end
+        for i = 1:numel(kids)
+            if ~kids(i).isdir || shouldSkipFolderName(kids(i).name)
+                continue;
+            end
+            stack{end + 1, 1} = fullfile(folderName, kids(i).name); %#ok<AGROW>
+        end
+    end
+end
+
+function tf = shouldSkipFolderName(name)
+    name = char(name);
+    lowerName = lower(name);
+    tf = isempty(name) || any(strcmp(name, {'.', '..'})) || ...
+        startsWith(name, '.') || strcmpi(name, 'private') || ...
+        endsWith(lowerName, '.app') || endsWith(lowerName, '.framework') || ...
+        endsWith(lowerName, '.dSYM') || strcmpi(name, '__MACOSX');
 end
 
 function tf = isOnPath(folderName)

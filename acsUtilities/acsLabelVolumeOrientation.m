@@ -42,7 +42,7 @@ function out = acsLabelVolumeOrientation(volumeIn, varargin)
     dims = size(vol);
     dims = dims(1:3);
     currentVoxel = chooseInitialVoxel(dims, opts.initialVoxel, opts.sliceFractions);
-    displayInfo = displayPlanes();
+    displayInfo = displayPlanes(opts.orientationCode);
     clim = displayLimits(vol, opts.intensityLimits);
 
     if isempty(opts.volumeLabel)
@@ -353,10 +353,11 @@ function currentVoxel = chooseInitialVoxel(dims, initialVoxel, fractions)
     currentVoxel = max([1 1 1], min(dims, currentVoxel));
 end
 
-function info = displayPlanes()
+function info = displayPlanes(orientationCode)
     fixedDims = 1:3;
     rowDims = [2 1 1];
     colDims = [3 3 2];
+    dimLabels = dimensionDisplayLabels(orientationCode);
     info = repmat(struct( ...
         'fixedDim', 1, ...
         'rowDim', 1, ...
@@ -367,8 +368,45 @@ function info = displayPlanes()
         info(i).fixedDim = fixedDims(i);
         info(i).rowDim = rowDims(i);
         info(i).colDim = colDims(i);
-        info(i).screenRight = sprintf('+dim %d', colDims(i));
-        info(i).screenDown = sprintf('+dim %d', rowDims(i));
+        info(i).screenRight = dimLabels{colDims(i)};
+        info(i).screenDown = dimLabels{rowDims(i)};
+    end
+end
+
+function labels = dimensionDisplayLabels(orientationCode)
+    labels = arrayfun(@(d) sprintf('+dim %d', d), 1:3, ...
+        'UniformOutput', false);
+    code = lower(strtrim(char(orientationCode)));
+    if numel(code) ~= 3 || any(strcmp(code, {'ask', 'gui', 'prompt'}))
+        return;
+    end
+    try
+        code = validateOrientationCode(code);
+    catch
+        return;
+    end
+    for dim = 1:3
+        labels{dim} = sprintf('%s (+dim %d)', ...
+            directionDisplayName(code(dim)), dim);
+    end
+end
+
+function name = directionDisplayName(code)
+    switch code
+        case 'r'
+            name = 'right';
+        case 'l'
+            name = 'left';
+        case 'a'
+            name = 'rostral';
+        case 'p'
+            name = 'caudal';
+        case 's'
+            name = 'dorsal';
+        case 'i'
+            name = 'ventral';
+        otherwise
+            name = sprintf('+%s', code);
     end
 end
 

@@ -80,8 +80,14 @@ disp('General Public License version 3 or later. It''s supported by')
 disp('both NIH grants and Soterix Medical Inc.')
 disp('=============================================================')
 
-if isempty(strfind(path,[fileparts(which(mfilename)) filesep 'lib/']))
-    addpath(genpath([fileparts(which(mfilename)) filesep 'lib/']));
+repoRootForPaths = fileparts(which(mfilename));
+if exist('setNHPulsePath', 'file') ~= 2
+    addpath(repoRootForPaths);
+end
+if exist('setNHPulsePath', 'file') == 2
+    setNHPulsePath('repoRoot', repoRootForPaths, 'verbose', false);
+else
+    safeRoastAddLibPaths(repoRootForPaths);
 end
 
 % check subject name
@@ -536,5 +542,15 @@ else
     for i=1:size(r.targetCoord,1)
         figName = ['Electric field at Target ' num2str(i) ' in Targeting: ' tarTag];
         sliceshow(r.ef_mag,r.targetCoord(i,:),cm,[min(dataShowVal) prctile(dataShowVal,95)],'Electric field (V/m)',[figName '. Click anywhere to navigate.'],r.ef_all,mri2mni,bbox); drawnow
+    end
+end
+
+function safeRoastAddLibPaths(repoRoot)
+libRoot = fullfile(repoRoot, 'lib');
+knownFolders = {'spm12', 'spm', 'iso2mesh', 'cvx', 'NIFTI_20110921'};
+for k = 1:numel(knownFolders)
+    folder = fullfile(libRoot, knownFolders{k});
+    if exist(folder, 'dir') == 7
+        addpath(folder, '-begin');
     end
 end

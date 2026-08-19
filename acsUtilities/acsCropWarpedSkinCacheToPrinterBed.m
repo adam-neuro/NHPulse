@@ -13,6 +13,8 @@ function out = acsCropWarpedSkinCacheToPrinterBed(skinCacheFile, varargin)
 %   cropPlaneFile    : saved crop-plane MAT ['']
 %   cropPlaneMode    : 'autoSelect', 'select', 'reuse', 'auto', or 'default' ['autoSelect']
 %   cropSide         : 'top' or 'bottom' half-space to keep ['top']
+%   initialCropAxis  : initial/default crop-plane normal [[] = auto]
+%   initialCropDistance : initial/default crop-plane distance [[] = auto]
 %   alignCrop        : rotate crop normal to +Z [true]
 %   centerXY         : center cropped cap in printer XY [true]
 %   dropToZ0         : translate cropped cap bottom to Z=0 [true]
@@ -129,6 +131,10 @@ function opts = parseInputs(varargin)
     addParameter(p, 'cropPlaneFile', '', @(x) ischar(x) || isstring(x));
     addParameter(p, 'cropPlaneMode', 'autoSelect', @(x) ischar(x) || isstring(x));
     addParameter(p, 'cropSide', 'top', @(x) ischar(x) || isstring(x));
+    addParameter(p, 'initialCropAxis', [], ...
+        @(x) isempty(x) || (isnumeric(x) && numel(x) == 3));
+    addParameter(p, 'initialCropDistance', [], ...
+        @(x) isempty(x) || (isnumeric(x) && isscalar(x) && isfinite(x)));
     addParameter(p, 'alignCrop', true, @isBoolLike);
     addParameter(p, 'centerXY', true, @isBoolLike);
     addParameter(p, 'dropToZ0', true, @isBoolLike);
@@ -151,6 +157,10 @@ function opts = parseInputs(varargin)
     opts.cropPlaneFile = expandUserPath(char(opts.cropPlaneFile));
     opts.cropPlaneMode = normalizeCropPlaneMode(opts.cropPlaneMode);
     opts.cropSide = normalizeCropSide(opts.cropSide);
+    opts.initialCropAxis = normalizeOptionalAxis(opts.initialCropAxis);
+    if ~isempty(opts.initialCropDistance)
+        opts.initialCropDistance = double(opts.initialCropDistance);
+    end
     opts.alignCrop = logical(opts.alignCrop);
     opts.centerXY = logical(opts.centerXY);
     opts.dropToZ0 = logical(opts.dropToZ0);
@@ -307,8 +317,13 @@ function cropPlane = resolveCropPlane(TRstableHead, inputFile, sourceMeta, opts)
 
     V = double(TRstableHead.Points);
     cropAxis = defaultCropAxis(sourceMeta);
+    if ~isempty(opts.initialCropAxis)
+        cropAxis = opts.initialCropAxis;
+    end
     s = V * cropAxis(:);
-    if strcmp(opts.cropSide, 'top')
+    if ~isempty(opts.initialCropDistance)
+        cropDistance = opts.initialCropDistance;
+    elseif strcmp(opts.cropSide, 'top')
         cropDistance = percentileLocal(s, 30);
     else
         cropDistance = percentileLocal(s, 70);
@@ -348,6 +363,20 @@ function cropAxis = defaultCropAxis(meta)
         cropAxis = double(meta.align.dir(:)');
     end
     cropAxis = cropAxis ./ max(norm(cropAxis), eps);
+end
+
+function axisOut = normalizeOptionalAxis(axisIn)
+    if isempty(axisIn)
+        axisOut = [];
+        return;
+    end
+    axisOut = double(axisIn(:)');
+    n = norm(axisOut);
+    if ~isfinite(n) || n <= eps
+        error('acsCropWarpedSkinCacheToPrinterBed:BadInitialCropAxis', ...
+            'initialCropAxis must be a finite nonzero 3-vector.');
+    end
+    axisOut = axisOut ./ n;
 end
 
 function points = contextPointsPreCrop(opts)
