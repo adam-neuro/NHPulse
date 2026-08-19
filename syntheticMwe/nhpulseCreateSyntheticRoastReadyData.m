@@ -663,9 +663,7 @@ function fileName = replaceExtension(fileName, newExt)
 end
 
 function ensureDir(folder)
-    if ~isempty(folder) && exist(folder, 'dir') ~= 7
-        mkdir(folder);
-    end
+    nhpulseEnsureWritableDir(folder, 'synthetic MWE output');
 end
 
 function name = safeName(name)

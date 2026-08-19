@@ -49,6 +49,10 @@ upstream ROAST README is preserved at [docs/ROAST_README.md](docs/ROAST_README.m
    setNHPulsePath;
    ```
 
+   If you place optional dependencies under `lib/` in the repository clone,
+   `setNHPulsePath` will also look for common folders such as `lib/spm`,
+   `lib/spm12`, `lib/cvx`, and `lib/iso2mesh`.
+
 3. Optional but recommended: create a local machine-path config. This writes
    `local.paths.json`, which is ignored by git. For the synthetic walkthrough,
    the defaults are enough:
@@ -66,7 +70,9 @@ upstream ROAST README is preserved at [docs/ROAST_README.md](docs/ROAST_README.m
    The config file records where generated outputs, private source data, ROAST
    scratch products, and optional external MATLAB dependencies live on a given
    computer. Generated data should stay outside git under `outputs/`, `data/`,
-   or a configured external data root.
+   or a configured external data root. If MATLAB reports a read-only output
+   folder, rerun this command with `useGui=true` and choose an `outputRoot`
+   under your home directory.
 
    If a dependency is missing, run:
 
@@ -78,21 +84,26 @@ upstream ROAST README is preserved at [docs/ROAST_README.md](docs/ROAST_README.m
    for dependencies such as SPM, CVX, iso2mesh/TetGen, GetDP, and Gmsh.
 
 4. Run the synthetic smoke test to verify that the installation can generate
-   tiny ROAST-ready demo data and place a toy cap layout:
+   tiny ROAST-ready demo data and place a toy cap layout. This is the
+   one-command version of the first part of the walkthrough:
 
    ```matlab
-   if ~exist('P', 'var'), P = acsPaths(); end
    smokeOut = nhpulseRunSyntheticSmokeTest( ...
-       fullfile(P.outputRoot, 'syntheticMwe', 'nhpulseSyntheticSmoke'), ...
        'force', true, ...
        'showFigures', true);
    ```
 
    The current smoke test uses SPM for NIfTI read/write. SPM is not bundled in
    the public repo; if it is missing, the error and dependency report point to
-   the official SPM install page and the local config field to update.
+   the official SPM install page and the local config field to update. On
+   macOS, if MATLAB blocks SPM or CVX MEX files because the downloaded package
+   cannot be verified, run `nhpulseClearMacQuarantine('spm')` or
+   `nhpulseClearMacQuarantine('cvx')` after configuring those paths.
 
 5. Work through [exampleWalkthrough.m](exampleWalkthrough.m) one cell at a time.
+   The walkthrough expands the smoke-test path into documented cells, uses
+   dummy lead fields for a fast tES layout-growth demonstration, and ends by
+   writing small synthetic dual-material cap STLs.
 
 The walkthrough is intentionally cell-based because several steps are
 interactive, slow, or both. ROAST/GetDP lead-field solves can take hours; the

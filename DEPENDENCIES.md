@@ -33,7 +33,9 @@ test.
 
 The public synthetic walkthrough in `exampleWalkthrough.m` is the lowest-friction
 reviewer entry point. It generates a tiny synthetic ROAST-ready T1/mask pair,
-builds a scalp cache, and places a toy custom electrode layout.
+builds a scalp cache, exports a quick PLA fit-check STL, exercises ear/implant
+exclusion bookkeeping, grows a tES candidate layout with dummy lead fields,
+interleaves EEG sites, and writes small dual-material cap STLs.
 
 Known requirements for this path:
 
@@ -70,6 +72,8 @@ subjects:
 - GetDP for finite-element solves and lead-field generation.
 - Gmsh for ROAST/GetDP mesh and visualization workflows.
 - CVX for sparse tES montage optimization (`cvx_begin` and related commands).
+  The synthetic walkthrough uses the development heuristic search mode so that
+  reviewers can exercise the optimization path before installing CVX.
 - A configured local path file such as `local.paths.json` for
   machine-specific external executable and data locations. Create one with
   `nhpulseConfigureLocalPaths`, or edit the generated file by hand if needed.
@@ -97,20 +101,44 @@ of these packages are redistributable under GPL-family or related licenses,
 but each project has its own terms and bundled binaries; revisit vendoring only
 with explicit license notices and version pinning.
 
-## macOS CVX MEX Troubleshooting
+If users manually install MATLAB dependencies inside a clone, `setNHPulsePath`
+checks common local folders including `lib/spm`, `lib/spm12`, `lib/cvx`,
+`lib/iso2mesh`, and `lib/NIFTI_20110921`.
 
-If `cvx_setup` fails on macOS with an "Invalid MEX-file" or "library load
-disallowed by system policy" message, the downloaded CVX folder may have a
-Gatekeeper quarantine attribute. From Terminal, run:
+## macOS Quarantine / MEX Troubleshooting
 
-```bash
-xattr -dr com.apple.quarantine /path/to/cvx
+If MATLAB fails on macOS with an "Invalid MEX-file", "developer cannot be
+verified", or "library load disallowed by system policy" message, the
+downloaded dependency folder may have a Gatekeeper quarantine attribute. This
+can affect CVX, SPM, or other dependencies that contain MEX binaries.
+
+After setting `spmPath` and/or `cvxPath` with `nhpulseConfigureLocalPaths`, run
+one of:
+
+```matlab
+nhpulseClearMacQuarantine('spm')
+nhpulseClearMacQuarantine('cvx')
+nhpulseClearMacQuarantine({'spm', 'cvx'})
 ```
 
-Then restart MATLAB, add the CVX folder to the MATLAB path, and rerun
-`cvx_setup`. If `savepath` fails during CVX setup, that usually only means
-MATLAB could not write its global `pathdef.m`; configure CVX through
-`nhpulseConfigureLocalPaths` or add it from your own `startup.m`.
+The helper runs the equivalent of `xattr -rc` on the configured folder. You can
+also pass a direct folder path:
+
+```matlab
+nhpulseClearMacQuarantine('/Users/adam/Documents/MATLAB/NHPulse/lib/spm')
+```
+
+The same operation can be run from Terminal:
+
+```bash
+xattr -rc /path/to/spm
+xattr -rc /path/to/cvx
+```
+
+Then restart MATLAB. For CVX, rerun `cvx_setup`. If `savepath` fails during CVX
+setup, that usually only means MATLAB could not write its global `pathdef.m`;
+configure CVX through `nhpulseConfigureLocalPaths` or add it from your own
+`startup.m`.
 
 ## Optional Components
 

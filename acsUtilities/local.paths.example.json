@@ -4,7 +4,7 @@
   "outputRoot": "/path/to/NHPulse/outputs",
   "roastWorkRoot": "/path/to/NHPulse/outputs/roast_work",
   "inpolyhedronPath": "/path/to/NHPulse/acsUtilities/inpolyhedron.m",
-  "spmPath": "/path/to/spm12",
+  "spmPath": "/path/to/spm",
   "iso2meshPath": "/path/to/iso2mesh",
   "cvxPath": "/path/to/cvx",
   "niftiPath": "/path/to/NIFTI_20110921",

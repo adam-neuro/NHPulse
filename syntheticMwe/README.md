@@ -13,7 +13,6 @@ ROAST solves:
 ```matlab
 setNHPulsePath;
 smokeOut = nhpulseRunSyntheticSmokeTest( ...
-    fullfile(pwd, 'outputs', 'syntheticMwe', 'nhpulseSyntheticSmoke'), ...
     'force', true, ...
     'showFigures', true);
 ```
@@ -36,6 +35,10 @@ The generator writes a small cartoon macaque-head dataset:
 - optional paired synthetic model/phone-scan fiducial files.
 - optional synthetic phone-scan-like PLY/MAT surface.
 
+The walkthrough also uses `nhpulseCreateSyntheticHeadpostTrace` to make a toy
+implant trace in capMaker print millimeters. That trace is a stand-in for
+Polhemus, phone-scan, or other subject-specific implant-localization data.
+
 The ROAST label convention is:
 
 1. white
@@ -47,10 +50,10 @@ The ROAST label convention is:
 
 ## Intended MWE Boundary
 
-The first public MWE should probably start from `syntheticOut.roastReady`
-rather than from DICOM import or SPM segmentation. That keeps the example
-small and deterministic while still exercising the NHPulse/capMaker layout
-and manufacturing path.
+The public walkthrough starts from `syntheticOut.roastReady` rather than from
+DICOM import or SPM segmentation. It uses dummy lead fields to stay small and
+deterministic while still exercising the NHPulse/capMaker layout-growth and
+manufacturing paths.
 
 These data are for software checks only. They are not anatomically realistic
 and should never be used for scientific simulation claims.

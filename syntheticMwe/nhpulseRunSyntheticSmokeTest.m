@@ -27,6 +27,7 @@ function out = nhpulseRunSyntheticSmokeTest(outputDir, varargin)
 
     opts = parseInputs(parameterNames, varargin{:});
     addLocalDependencies();
+    nhpulseEnsureWritableDir(outputDir, 'synthetic smoke-test output');
     restoreFigureWindowStyle = setTemporaryFigureWindowStyle('normal');
 
     syntheticOut = nhpulseCreateSyntheticRoastReadyData(outputDir, ...
