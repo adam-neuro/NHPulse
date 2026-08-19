@@ -106,6 +106,11 @@ upstream ROAST README is preserved at [docs/ROAST_README.md](docs/ROAST_README.m
    fast tES layout-growth demonstration, and ends by writing small synthetic
    fit-check and dual-material cap STLs.
 
+   To exercise the actual ROAST/GetDP lead-field path on the synthetic head,
+   set `cfg.leadFieldMode = 'roast'` in cell 00 before running the growth
+   section. The walkthrough times each lead-field solve so you can decide
+   whether the real-solve path is practical on your machine.
+
 The walkthrough is intentionally cell-based because several steps are
 interactive, slow, or both. ROAST/GetDP lead-field solves can take hours; the
 walkthrough includes switches for replaying cached products and for using dummy

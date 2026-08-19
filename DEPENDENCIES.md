@@ -78,6 +78,11 @@ subjects:
   machine-specific external executable and data locations. Create one with
   `nhpulseConfigureLocalPaths`, or edit the generated file by hand if needed.
 
+By default, `exampleWalkthrough.m` uses dummy lead fields to keep reviewer
+runs fast. Set `cfg.leadFieldMode = 'roast'` in cell 00 to benchmark actual
+ROAST/GetDP lead-field solves on the synthetic head; the walkthrough prints
+timing feedback for each solve.
+
 ## Real Macaque Tissue Priors
 
 Real-subject SPM segmentation can use a six-channel macaque tissue probability

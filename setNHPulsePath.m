@@ -166,6 +166,7 @@ function addedPaths = addExistingFolderTree(rootFolder, addedPaths)
     if isempty(rootFolder) || exist(rootFolder, 'dir') ~= 7
         return;
     end
+    removeDisallowedDescendantPaths(rootFolder);
     stack = {rootFolder};
     seen = {};
     while ~isempty(stack)
@@ -199,8 +200,47 @@ function tf = shouldSkipFolderName(name)
     lowerName = lower(name);
     tf = isempty(name) || any(strcmp(name, {'.', '..'})) || ...
         startsWith(name, '.') || strcmpi(name, 'private') || ...
+        startsWith(name, '@') || startsWith(name, '+') || ...
         endsWith(lowerName, '.app') || endsWith(lowerName, '.framework') || ...
         endsWith(lowerName, '.dSYM') || strcmpi(name, '__MACOSX');
+end
+
+function removeDisallowedDescendantPaths(rootFolder)
+    rootKey = canonicalizeLight(rootFolder);
+    if isempty(rootKey)
+        return;
+    end
+    pathParts = strsplit(path, pathsep);
+    for i = 1:numel(pathParts)
+        pathEntry = canonicalizeLight(pathParts{i});
+        if isempty(pathEntry) || ~isDescendantPath(pathEntry, rootKey)
+            continue;
+        end
+        if pathContainsDisallowedFolder(pathEntry)
+            try
+                rmpath(pathParts{i});
+            catch
+            end
+        end
+    end
+end
+
+function tf = isDescendantPath(pathEntry, rootFolder)
+    pathEntry = lower(strrep(pathEntry, '\', '/'));
+    rootFolder = lower(strrep(rootFolder, '\', '/'));
+    tf = strcmp(pathEntry, rootFolder) || ...
+        startsWith(pathEntry, [rootFolder '/']);
+end
+
+function tf = pathContainsDisallowedFolder(pathEntry)
+    parts = regexp(canonicalizeLight(pathEntry), '[\\/]+', 'split');
+    tf = any(cellfun(@isDisallowedPathPart, parts));
+end
+
+function tf = isDisallowedPathPart(name)
+    name = char(name);
+    tf = strcmpi(name, 'private') || startsWith(name, '@') || ...
+        startsWith(name, '+') || startsWith(name, '.');
 end
 
 function tf = isOnPath(folderName)
