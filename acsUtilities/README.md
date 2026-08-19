@@ -126,6 +126,14 @@ segmentation with a six-channel macaque TPM. By default it looks for
 `defaultMonkeyTpm.nii` under `acsPaths().dataRoot/MRIs/atlasfiles`, with a
 temporary fallback to the historical `myTpm.nii` name.
 
+For real rhesus macaque workflows, the default `templateMaker` atlas-prior
+filenames (`gm_priors_ohsu+uw.nii`, `wm_priors_ohsu+uw.nii`, and
+`csf_priors_ohsu+uw.nii`) correspond to the 112RM-SL rhesus macaque atlas
+priors described by McLaren et al. (2009). The generated six-channel
+ROAST/SPM-style TPM is a local derived product and should stay outside git.
+See [../CITATION.md](../CITATION.md) and [../DEPENDENCIES.md](../DEPENDENCIES.md)
+for citation and download notes.
+
 The TPM channel order is assumed to match ROAST/SPM:
 
 1. gray matter

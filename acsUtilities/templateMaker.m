@@ -19,6 +19,9 @@ function out = templateMaker(varargin)
 % Generated NIfTI files should stay outside git. The default outputDir is
 % under the ignored outputs/templates folder.
 %
+% The default atlasPriors file names correspond to the 112RM-SL rhesus
+% macaque priors described by McLaren et al., NeuroImage 2009.
+%
 % Output channels follow ROAST/SPM order:
 %   1 gray matter, 2 white matter, 3 CSF, 4 bone, 5 skin/scalp, 6 air.
 

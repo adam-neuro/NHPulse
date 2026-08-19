@@ -37,6 +37,16 @@ Multiple Brain Regions: An Integrated Implementation. Proceedings of the 40th
 Annual International Conference of the IEEE Engineering in Medicine and Biology
 Society, Honolulu, HI, July 2018, 3545-3548.
 
+## Macaque Tissue Priors
+
+If using the 112RM-SL rhesus macaque atlas priors, or a ROAST/SPM-style TPM
+derived from those priors, please cite:
+
+McLaren, D.G., Kosmatka, K.J., Oakes, T.R., Kroenke, C.D., Kohama, S.G.,
+Matochik, J.A., Ingram, D.K., & Johnson, S.C. A population-average MRI-based
+atlas collection of the rhesus macaque. *NeuroImage*, 45(1), 52-59, 2009.
+<https://doi.org/10.1016/j.neuroimage.2008.10.058>
+
 ## NHPulse Extensions
 
 The non-human-primate capMaker/ACS extensions in this repository are currently

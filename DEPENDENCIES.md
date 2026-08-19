@@ -78,6 +78,33 @@ subjects:
   machine-specific external executable and data locations. Create one with
   `nhpulseConfigureLocalPaths`, or edit the generated file by hand if needed.
 
+## Real Macaque Tissue Priors
+
+Real-subject SPM segmentation can use a six-channel macaque tissue probability
+map (TPM). The development workflow used a derived ROAST/SPM-style TPM named
+`defaultMonkeyTpm.nii`, with a legacy local filename fallback of `myTpm.nii`.
+This file is generated outside git and should not be committed.
+
+The default `templateMaker('mode','atlasPriors')` inputs are named
+`gm_priors_ohsu+uw.nii`, `wm_priors_ohsu+uw.nii`, and
+`csf_priors_ohsu+uw.nii`. Those names correspond to the 112RM-SL rhesus
+macaque atlas priors described by McLaren et al. (2009), which were built from
+OHSU and University of Wisconsin animals. Cite the atlas paper when these
+priors or a TPM derived from them are used:
+
+McLaren, D.G., Kosmatka, K.J., Oakes, T.R., Kroenke, C.D., Kohama, S.G.,
+Matochik, J.A., Ingram, D.K., & Johnson, S.C. A population-average MRI-based
+atlas collection of the rhesus macaque. *NeuroImage*, 45(1), 52-59, 2009.
+<https://doi.org/10.1016/j.neuroimage.2008.10.058>
+
+Useful source pages include the SPM Extensions listing for the 112RM-SL
+template and priors (<https://www.fil.ion.ucl.ac.uk/spm/ext/>) and the
+NeuroDebian package page for the McLaren rhesus macaque atlas
+(<https://neuro.debian.net/pkgs/mclaren-rhesus-macaque-atlas.html>). The
+historical project URL was `http://brainmap.wisc.edu/monkey.html`, but registry
+pages currently mark that URL as old or unavailable, so users may need to use
+one of the mirrored/package routes or contact the data maintainers.
+
 ## Install Links
 
 - SPM: <https://www.fil.ion.ucl.ac.uk/spm/docs/installation/>
