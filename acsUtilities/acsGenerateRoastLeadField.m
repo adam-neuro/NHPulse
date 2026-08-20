@@ -17,6 +17,7 @@ function out = acsGenerateRoastLeadField(roastSource, varargin)
 %   conductivities     : optional ROAST conductivities struct [struct()]
 %   titaniumConductivity : Ti6Al4V Grade 5 default [1/(169e-8)]
 %   roastOptions       : additional ROAST name-value pairs [{}]
+%   showFigures        : show ROAST internal QC viewers [false]
 %   execute            : call ROAST immediately [true]
 %   saveReport         : save a small request report beside the T1 [true]
 %
@@ -81,6 +82,7 @@ function out = acsGenerateRoastLeadField(roastSource, varargin)
             electrodeOptions{:}, ...
             'resampling', opts.resampling, ...
             'simulationTag', opts.simulationTag, ...
+            'showFigures', onOffText(opts.showFigures), ...
             opts.roastOptions{:});
 
         out = resolveActualLeadFieldProducts(out, opts, names, ...
@@ -106,6 +108,7 @@ function opts = parseInputs(varargin)
     addParameter(p, 'titaniumConductivity', 1 / (169e-8), ...
         @(x) isnumeric(x) && isscalar(x) && isfinite(x) && x > 0);
     addParameter(p, 'roastOptions', {}, @iscell);
+    addParameter(p, 'showFigures', false, @isBoolLike);
     addParameter(p, 'execute', true, @isBoolLike);
     addParameter(p, 'saveReport', true, @isBoolLike);
     parse(p, varargin{:});
@@ -122,6 +125,7 @@ function opts = parseInputs(varargin)
         opts.conductivities = struct();
     end
     opts.titaniumConductivity = double(opts.titaniumConductivity);
+    opts.showFigures = logical(opts.showFigures);
     opts.execute = logical(opts.execute);
     opts.saveReport = logical(opts.saveReport);
 
@@ -167,6 +171,14 @@ end
 
 function tf = isBoolLike(x)
     tf = (islogical(x) || isnumeric(x)) && isscalar(x);
+end
+
+function value = onOffText(tf)
+    if tf
+        value = 'on';
+    else
+        value = 'off';
+    end
 end
 
 function mode = normalizeCandidateMode(mode)
@@ -317,6 +329,7 @@ function out = buildReport(t1File, opts, names, referenceElectrode, ...
     out.conductivities = opts.effectiveConductivities;
     out.titaniumConductivity = opts.titaniumConductivity;
     out.roastOptions = opts.roastOptions(:);
+    out.showFigures = opts.showFigures;
     out.execute = opts.execute;
     out.leadFieldResultMat = fullfile(folder, ...
         [stem '_' opts.simulationTag '_roastResult.mat']);

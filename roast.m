@@ -145,6 +145,9 @@ while indArg <= length(varargin)
         case 'manualgui'
             manualGui = varargin{indArg+1};
             indArg = indArg+2;
+        case 'showfigures'
+            showFigures = varargin{indArg+1};
+            indArg = indArg+2;
         case 'meshoptions'
             meshOpt = varargin{indArg+1};
             indArg = indArg+2;
@@ -182,7 +185,7 @@ while indArg <= length(varargin)
             electricFieldClim = varargin{indArg+1};
             indArg = indArg+2;
         otherwise
-            error('Supported options are: ''capType'', ''elecType'', ''elecSize'', ''elecGelSize'', ''elecSkinGap'', ''elecOri'', ''T2'', ''multiaxial'',''manualGui'',''meshOptions'',''conductivities'', ''segMaskFile'', ''extraTissues'', ''simulationTag'', ''resampling'', ''zeroPadding'', ''leadFieldElectrodes'', ''leadFieldReference'', ''electricFieldClimMode'', ''electricFieldClimPercentile'', and ''electricFieldClim''.');
+            error('Supported options are: ''capType'', ''elecType'', ''elecSize'', ''elecGelSize'', ''elecSkinGap'', ''elecOri'', ''T2'', ''multiaxial'',''manualGui'', ''showFigures'', ''meshOptions'',''conductivities'', ''segMaskFile'', ''extraTissues'', ''simulationTag'', ''resampling'', ''zeroPadding'', ''leadFieldElectrodes'', ''leadFieldReference'', ''electricFieldClimMode'', ''electricFieldClimPercentile'', and ''electricFieldClim''.');
     end
 end
 
@@ -194,6 +197,11 @@ if ~exist('electricFieldClimPercentile','var') || isempty(electricFieldClimPerce
 end
 if ~exist('electricFieldClim','var')
     electricFieldClim = [];
+end
+if ~exist('showFigures','var') || isempty(showFigures)
+    showFigures = 1;
+else
+    showFigures = normalizeOnOffFlag(showFigures, 'showFigures');
 end
 visualizationOptions = struct( ...
     'electricFieldClimMode', electricFieldClimMode, ...
@@ -1114,11 +1122,19 @@ if ~strcmp(subjName,'nyhead') && ~customSegContextReady
     end
     disp('======================================================')
     disp('VISUALIZING THE MRI... ')
-    viewMRI(subjRasRSPD,T2,mri2mni);
+    if showFigures
+        viewMRI(subjRasRSPD,T2,mri2mni);
+    else
+        disp('Skipping MRI viewer because showFigures is off.')
+    end
 elseif customSegContextReady
     disp('======================================================')
     disp('VISUALIZING THE MRI... ')
-    viewMRI(subjRasRSPD,T2,mri2mni);
+    if showFigures
+        viewMRI(subjRasRSPD,T2,mri2mni);
+    else
+        disp('Skipping MRI viewer because showFigures is off.')
+    end
 else
     disp('==================================================================')
     disp(' NEW YORK HEAD SELECTED, SKIPPING SEGMENTATION & REGISTRATION ... ')
@@ -1133,7 +1149,11 @@ else
 end
 disp('======================================================')
 disp('VISUALIZING THE SEGMENTATION... ')
-viewSeg(segMask,mri2mni);
+if showFigures
+    viewSeg(segMask,mri2mni);
+else
+    disp('Skipping segmentation viewer because showFigures is off.')
+end
 
 if ~useCustomSegMask && ~exist([dirname filesep subjModelNameAftSeg '_masks_MNI.nii'],'file')
     disp('======================================================')
@@ -1205,7 +1225,11 @@ if isempty(elecPara(1).indP) && isempty(elecPara(1).indN) && ~isempty(elecPara(1
     landmarksForDisplay = [];
     disp('Custom-only montage: omitting template-derived anatomical landmarks from electrode QC.')
 end
-viewElectrodes(segMask,elec,gel,landmarksForDisplay,image,uniqueTag);
+if showFigures
+    viewElectrodes(segMask,elec,gel,landmarksForDisplay,image,uniqueTag);
+else
+    disp('Skipping electrode/gel viewer because showFigures is off.')
+end
 
 if ~exist([dirname filesep subjName '_' uniqueTag '.mat'],'file')
     disp('======================================================')
@@ -1246,7 +1270,11 @@ if any(~strcmpi(recipe,'leadfield'))
         disp('======================================================')
         load([dirname filesep subjName '_' uniqueTag '_roastResult.mat'],'vol_all','ef_mag','ef_all');
     end
-    visualizeRes(subj,segMask,mri2mni,node,elem,face,injectCurrent,image,uniqueTag,vol_all,ef_mag,ef_all,extraTissues,visualizationOptions);
+    if showFigures
+        visualizeRes(subj,segMask,mri2mni,node,elem,face,injectCurrent,image,uniqueTag,vol_all,ef_mag,ef_all,extraTissues,visualizationOptions);
+    else
+        disp('Skipping result visualization because showFigures is off.')
+    end
 
 else
 
@@ -1346,4 +1374,23 @@ landmarks(7, :) = round([center(1), center(2), mx(3)]);
 ys = linspace(mn(2), mx(2), 9);
 for idx = 1:9
     landmarks(7 + idx, :) = round([center(1), ys(idx), mx(3)]);
+end
+
+function tf = normalizeOnOffFlag(value, optionName)
+if islogical(value) || isnumeric(value)
+    if ~isscalar(value)
+        error('ROAST:BadOption', '%s must be a scalar logical/numeric or on/off text.', optionName);
+    end
+    tf = logical(value);
+    return;
+end
+
+text = lower(strtrim(char(value)));
+switch text
+    case {'on', 'true', 'yes', '1'}
+        tf = true;
+    case {'off', 'false', 'no', '0'}
+        tf = false;
+    otherwise
+        error('ROAST:BadOption', '%s must be on/off or true/false.', optionName);
 end

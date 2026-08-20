@@ -45,7 +45,7 @@ switch str
         pythonExecutable = [pwd '/lib/multiaxial/multiaxialEnvLinux/bin/python3'];
         pythonScript = [pwd '/lib/multiaxial/SEGMENT.py'];
 
-    case 'maci64'
+    case {'maci64', 'maca64'}
         setupScript = [pwd '/lib/multiaxial/setupMac.sh'];
 
         % Grant execute permissions to the script

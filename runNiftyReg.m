@@ -17,7 +17,7 @@ switch arch
     case 'glnxa64'
         niftyreg_path = fullfile(pwd, 'lib', 'NiftyReg', 'linux', filesep);
         system(['chmod +x ' niftyreg_path 'reg_aladin']);
-    case 'maci64'
+    case {'maci64', 'maca64'}
         niftyreg_path = fullfile(pwd, 'lib', 'NiftyReg', 'mac', filesep);
         system(['chmod +x ' niftyreg_path 'reg_aladin']);
     otherwise

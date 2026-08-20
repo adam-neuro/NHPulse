@@ -192,7 +192,7 @@ switch str
         solverName = 'getdp.exe';
     case 'glnxa64'
         solverName = 'getdp';
-    case 'maci64'
+    case {'maci64', 'maca64'}
         solverName = 'getdpMac';
     otherwise
         error('Unsupported operating system!');
