@@ -18,6 +18,8 @@ function out = nhpulseCreateSyntheticRoastReadyData(outputDir, varargin)
 %   voxelSizeMm      : isotropic voxel size [1]
 %   includePhoneScan : write a synthetic phone-scan-like PLY/MAT [true]
 %   includeFiducials : write paired model/phone fiducial MAT files [true]
+%   niftiOriginOffsetMm : tiny affine origin offset for ROAST header guard
+%                         [[1e-3 0 0]]
 %   force            : overwrite existing files [false]
 %   showFigure       : show QC figure [true]
 %   saveFigure       : save QC PNG [true]
@@ -26,6 +28,7 @@ function out = nhpulseCreateSyntheticRoastReadyData(outputDir, varargin)
     parameterNames = {'subjectId', 'dims', 'voxelSizeMm', ...
         'includePhoneScan', 'includeFiducials', 'force', ...
         'showFigure', 'saveFigure', 'verbose', 'rngSeed', ...
+        'niftiOriginOffsetMm', ...
         'phoneScanInflationMm', 'phoneScanScale', 'phoneScanRotationDeg', ...
         'phoneScanTranslationMm', 'phoneScanMaxFaces'};
 
@@ -48,7 +51,9 @@ function out = nhpulseCreateSyntheticRoastReadyData(outputDir, varargin)
     rng(opts.rngSeed);
     [labels, t1, geometry] = makeSyntheticVolume(opts);
 
-    mat = makeSpmVoxelMatrix(opts.voxelSizeMm);
+    mat = makeSpmVoxelMatrix(opts.voxelSizeMm, opts.niftiOriginOffsetMm);
+    geometry.niftiAffine = mat;
+    geometry.niftiOriginOffsetMm = opts.niftiOriginOffsetMm;
     writeNifti(paths.t1File, t1, mat, 'float32', ...
         'NHPulse synthetic T1-like volume');
     writeNifti(paths.maskFile, labels, mat, 'uint8', ...
@@ -130,6 +135,8 @@ function opts = parseInputs(parameterNames, varargin)
     addParameter(p, 'verbose', true, @isBoolLike);
     addParameter(p, 'rngSeed', 1, ...
         @(x) isnumeric(x) && isscalar(x) && isfinite(x));
+    addParameter(p, 'niftiOriginOffsetMm', [1e-3 0 0], ...
+        @(x) isnumeric(x) && numel(x) == 3 && all(isfinite(x)));
     addParameter(p, 'phoneScanInflationMm', 3, ...
         @(x) isnumeric(x) && isscalar(x) && isfinite(x));
     addParameter(p, 'phoneScanScale', 1.03, ...
@@ -153,6 +160,7 @@ function opts = parseInputs(parameterNames, varargin)
     opts.saveFigure = logical(opts.saveFigure);
     opts.verbose = logical(opts.verbose);
     opts.rngSeed = double(opts.rngSeed);
+    opts.niftiOriginOffsetMm = double(opts.niftiOriginOffsetMm(:)');
     opts.phoneScanInflationMm = double(opts.phoneScanInflationMm);
     opts.phoneScanScale = double(opts.phoneScanScale);
     opts.phoneScanRotationDeg = double(opts.phoneScanRotationDeg(:)');
@@ -305,8 +313,9 @@ function value = ellipsoidValue(X, Y, Z, axesMm)
         (Z ./ axesMm(3)) .^ 2;
 end
 
-function mat = makeSpmVoxelMatrix(voxelSizeMm)
+function mat = makeSpmVoxelMatrix(voxelSizeMm, originOffsetMm)
     mat = diag([voxelSizeMm voxelSizeMm voxelSizeMm 1]);
+    mat(1:3, 4) = originOffsetMm(:);
 end
 
 function writeNifti(fileName, data, mat, spmTypeName, description)
