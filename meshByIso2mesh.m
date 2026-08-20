@@ -31,7 +31,13 @@ for i=1:numOfElec
     allMask(elec.img==i) = numOfTissue + numOfGel + i;
 end
 
-% allMask = uint8(allMask);
+maxLabelValue = max(allMask(:));
+if maxLabelValue > double(intmax('uint8'))
+    error('meshByIso2mesh:TooManyDomains', ...
+        ['The assembled ROAST domain volume contains label %g, which ', ...
+         'exceeds the uint8 range required by cgalv2m.'], maxLabelValue);
+end
+allMask = uint8(round(allMask));
 
 % opt.radbound = 5; % default 6, maximum surface element size
 % opt.angbound = 30; % default 30, miminum angle of a surface triangle
