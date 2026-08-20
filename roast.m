@@ -997,7 +997,27 @@ else
     end
 end
 
-if ~strcmp(subjName,'nyhead')
+customSegContextReady = false;
+if ~strcmp(subjName,'nyhead') && useCustomSegMask
+    disp('======================================================')
+    disp(' CUSTOM SEGMENTATION MASK PROVIDED, SKIP SEGMENTATION ')
+    disp('======================================================')
+    image = spm_vol(subjRasRSPD);
+    image = image(1);
+    tpm = image;
+    Affine = eye(4);
+    mri2mni = Affine*image(1).mat;
+    segMask = load_untouch_nii(segMaskFileForRoast);
+    landmarks = estimateLandmarksFromCustomMask(segMask.img);
+    customSegContextReady = true;
+    if manualGui
+        warning(['manualGui is ignored when a custom segMaskFile is ', ...
+            'provided because no SPM TPM registration landmarks are available.']);
+        manualGui = 0;
+    end
+end
+
+if ~strcmp(subjName,'nyhead') && ~customSegContextReady
     if ~multiaxial
         if  ~exist([dirname filesep subjModelNameAftSpm '_seg8.mat'], 'file')
             disp('======================================================')
@@ -1092,6 +1112,10 @@ if ~strcmp(subjName,'nyhead')
             alignHeader2mni(subjRasRSPD,T2,subjRasRSPDSeg,mri2mni);
         end
     end
+    disp('======================================================')
+    disp('VISUALIZING THE MRI... ')
+    viewMRI(subjRasRSPD,T2,mri2mni);
+elseif customSegContextReady
     disp('======================================================')
     disp('VISUALIZING THE MRI... ')
     viewMRI(subjRasRSPD,T2,mri2mni);
@@ -1290,4 +1314,38 @@ for k = 1:numel(knownFolders)
     if exist(folder, 'dir') == 7
         addpath(folder, '-begin');
     end
+end
+end
+
+function landmarks = estimateLandmarksFromCustomMask(labelVolume)
+mask = labelVolume > 0 & labelVolume ~= 6;
+if nnz(mask) < 10
+    mask = labelVolume > 0;
+end
+if nnz(mask) < 10
+    dims = size(labelVolume);
+    center = (double(dims) + 1) ./ 2;
+    mn = ones(1, 3);
+    mx = double(dims);
+else
+    [i, j, k] = ind2sub(size(labelVolume), find(mask));
+    pts = double([i, j, k]);
+    mn = min(pts, [], 1);
+    mx = max(pts, [], 1);
+    center = mean(pts, 1);
+end
+
+landmarks = repmat(round(center), 16, 1);
+landmarks(1, :) = round([center(1), mx(2), center(3)]);
+landmarks(2, :) = round([center(1), mn(2), center(3)]);
+landmarks(3, :) = round([mn(1), center(2), center(3)]);
+landmarks(4, :) = round([mx(1), center(2), center(3)]);
+landmarks(5, :) = round([center(1), mx(2), mn(3)]);
+landmarks(6, :) = round([center(1), mn(2), mn(3)]);
+landmarks(7, :) = round([center(1), center(2), mx(3)]);
+
+ys = linspace(mn(2), mx(2), 9);
+for idx = 1:9
+    landmarks(7 + idx, :) = round([center(1), ys(idx), mx(3)]);
+end
 end
