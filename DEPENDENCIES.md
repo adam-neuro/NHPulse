@@ -183,6 +183,10 @@ These are useful for some workflows but are not required for the synthetic MWE:
 - External digitizer or 3D-scan tools. NHPulse can work with saved point sets,
   traces, and phone/LiDAR meshes, but the public release does not include a
   live hardware acquisition interface.
+- Upstream ROAST `capInfo.xlsx` if users want predefined 10-20/10-10/10-05,
+  BioSemi, or EGI electrode names. NHPulse's synthetic and capMaker workflows
+  use subject-specific `custom...` locations and do not require this
+  spreadsheet.
 - Phone/LiDAR scan inputs from tools such as EM3D. The synthetic MWE creates a
   small phone-scan-like mesh for software testing. Real animal scans should be
   kept outside git.

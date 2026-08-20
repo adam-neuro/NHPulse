@@ -12,24 +12,12 @@ doNeck = 0;
 doCustom = 0;
 unknownElec = 0;
 
-switch lower(para(1).capType)
-    case {'1020','1010','1005'}
-        capInfo = table2cell(readtable('capInfo.xlsx','Sheet','10-05'));
-        elecPool_P = capInfo(:,1);
-    case 'biosemi'
-        capInfo = table2cell(readtable('capInfo.xlsx','Sheet','BioSemi'));
-        elecPool_P = capInfo(:,1);
-    case 'egi'
-        capInfo = table2cell(readtable('capInfo.xlsx','Sheet','EGI'));
-        elecPool_P = capInfo(:,1);
-end
+elecPool_P = {};
 
 elecPool_N = {'nk1';'nk2';'nk3';'nk4'};
 
 for i=1:length(elec)
-    if ismember(elec{i},elecPool_P)
-        doPredefined = 1;
-    elseif ismember(lower(elec{i}),elecPool_N)
+    if ismember(lower(elec{i}),elecPool_N)
         doNeck = 1;
     elseif ~isempty(strfind(lower(elec{i}),'custom'))
         doCustom = 1;
@@ -49,8 +37,15 @@ for i=1:length(elec)
             unknownElec = unknownElec+1;
         end
     else
-        warning(['Unrecognized electrode ',elec{i}]);
-        unknownElec = unknownElec+1;
+        if isempty(elecPool_P)
+            elecPool_P = predefinedElectrodePool(para(1).capType);
+        end
+        if ismember(elec{i},elecPool_P)
+            doPredefined = 1;
+        else
+            warning(['Unrecognized electrode ',elec{i}]);
+            unknownElec = unknownElec+1;
+        end
     end
 end
 
@@ -99,3 +94,43 @@ if isempty(indP)
 end
 
 ind2UI = cat(1,ind2UI_P,ind2UI_N,ind2UI_C);
+end
+
+function elecPool_P = predefinedElectrodePool(capType)
+switch lower(capType)
+    case {'1020','1010','1005'}
+        sheetName = '10-05';
+    case 'biosemi'
+        sheetName = 'BioSemi';
+    case 'egi'
+        sheetName = 'EGI';
+    otherwise
+        elecPool_P = {};
+        return;
+end
+
+capInfoFile = findCapInfoFile();
+if isempty(capInfoFile)
+    error('elecPreproc:MissingCapInfo', ...
+        ['ROAST needs capInfo.xlsx to use predefined %s electrode names, ', ...
+         'but the spreadsheet was not found. Custom-electrode workflows ', ...
+         'do not require this file; check that every custom electrode name ', ...
+         'starts with "custom", or add capInfo.xlsx to the ROAST folder.'], ...
+        capType);
+end
+capInfo = table2cell(readtable(capInfoFile, 'Sheet', sheetName));
+elecPool_P = capInfo(:,1);
+end
+
+function capInfoFile = findCapInfoFile()
+capInfoFile = '';
+localFile = fullfile(fileparts(mfilename('fullpath')), 'capInfo.xlsx');
+if exist(localFile, 'file') == 2
+    capInfoFile = localFile;
+    return;
+end
+pathFile = which('capInfo.xlsx');
+if ~isempty(pathFile)
+    capInfoFile = pathFile;
+end
+end
