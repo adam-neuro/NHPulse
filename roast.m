@@ -1315,7 +1315,6 @@ for k = 1:numel(knownFolders)
         addpath(folder, '-begin');
     end
 end
-end
 
 function landmarks = estimateLandmarksFromCustomMask(labelVolume)
 mask = labelVolume > 0 & labelVolume ~= 6;
@@ -1347,5 +1346,4 @@ landmarks(7, :) = round([center(1), center(2), mx(3)]);
 ys = linspace(mn(2), mx(2), 9);
 for idx = 1:9
     landmarks(7 + idx, :) = round([center(1), ys(idx), mx(3)]);
-end
 end
