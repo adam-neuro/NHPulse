@@ -1,0 +1,38 @@
+name: Synthetic walkthrough problem
+description: Report a problem following the public reviewer walkthrough
+title: "[Walkthrough]: "
+labels: ["walkthrough", "documentation"]
+body:
+  - type: input
+    id: cell
+    attributes:
+      label: Walkthrough cell or command
+      placeholder: "Cell 04, nhpulseRunSyntheticSmokeTest, etc."
+    validations:
+      required: true
+  - type: dropdown
+    id: preset
+    attributes:
+      label: Preset
+      options:
+        - syntheticReviewer
+        - syntheticFast
+        - syntheticRoast
+        - custom
+    validations:
+      required: true
+  - type: textarea
+    id: issue
+    attributes:
+      label: What happened?
+      description: Describe the figure, file, or command-window output that looked wrong.
+    validations:
+      required: true
+  - type: textarea
+    id: verification
+    attributes:
+      label: Verification output
+      description: If available, paste nhpulseVerifySyntheticWalkthrough output.
+      render: text
+    validations:
+      required: false

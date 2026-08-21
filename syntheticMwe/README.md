@@ -51,9 +51,22 @@ The ROAST label convention is:
 ## Intended MWE Boundary
 
 The public walkthrough starts from `syntheticOut.roastReady` rather than from
-DICOM import or SPM segmentation. It uses dummy lead fields to stay small and
-deterministic while still exercising the NHPulse/capMaker layout-growth and
-manufacturing paths.
+DICOM import or SPM segmentation. By default it uses dummy lead fields to stay
+small and deterministic while still exercising the NHPulse/capMaker
+layout-growth and manufacturing paths. Use `nhpulseExampleConfig` to switch
+between reviewer presets:
+
+```matlab
+cfg = nhpulseExampleConfig('syntheticReviewer'); % interactive, dummy fields
+cfg = nhpulseExampleConfig('syntheticFast');     % noninteractive, dummy fields
+cfg = nhpulseExampleConfig('syntheticRoast');    % noninteractive, real ROAST/GetDP
+```
+
+After running `exampleWalkthrough.m`, verify the expected product files with:
+
+```matlab
+verification = nhpulseVerifySyntheticWalkthrough();
+```
 
 These data are for software checks only. They are not anatomically realistic
 and should never be used for scientific simulation claims.

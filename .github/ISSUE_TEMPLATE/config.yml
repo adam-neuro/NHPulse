@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Documentation
+    url: https://github.com/adam-neuro/NHPulse/tree/main/docs
+    about: Start with the installation, synthetic walkthrough, and troubleshooting pages.

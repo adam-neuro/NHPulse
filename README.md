@@ -1,33 +1,84 @@
 # NHPulse
 
-NHPulse is a research workflow for designing individualized non-human-primate
-EEG/tES caps. It extends the ROAST electric-field modeling toolbox with
-utilities for subject-specific anatomy import, scalp/implant registration,
-capMaker-style electrode layout, tES targeting, EEG placement, and STL
-generation for cap manufacturing.
+NHPulse is a MATLAB research workflow for individualized non-human-primate
+EEG/tES cap design. It extends the ROAST electric-field modeling toolbox with
+utilities for synthetic/reviewer examples, subject-specific scalp and implant
+registration, capMaker-style layout design, sparse tES targeting, EEG
+interleaving, and PLA/TPE STL generation.
 
-The current code is a working research pipeline rather than a polished GUI
-application. The short-term goal is to make the workflow reproducible and
-inspectable from documented MATLAB walkthroughs; a comprehensive GUI can sit
-on top of the same functions later.
+The current release is a working research-software alpha rather than a polished
+GUI application. The reviewer path is intentionally script-based so every file,
+setting, and intermediate product is inspectable.
 
-## What This Adds
+## Reviewer Quick Start
 
-- DICOM/NIfTI preprocessing helpers for monkey MRI workflows.
-- ROAST-compatible tissue-label and lead-field generation wrappers.
-- Phone-scan and saved digitizer-trace registration utilities for updating
-  scalp shape and localizing implants.
-- Subject-specific headpost, chamber, ear, face, and manufacturing exclusion
-  tools.
-- Iterative candidate growth for tES electrode layouts, including surrogate
-  lead-field expansion and UCB-style candidate selection.
+Open MATLAB from the repository root and run:
+
+```matlab
+setNHPulsePath;
+P = nhpulseConfigureLocalPaths('profile', 'syntheticMwe');
+report = nhpulseCheckDependencies();
+smokeOut = nhpulseRunSyntheticSmokeTest('force', true, 'showFigures', true);
+```
+
+Then open [exampleWalkthrough.m](exampleWalkthrough.m) and run the cells in
+order. The default preset uses interactive GUI steps and dummy lead fields so a
+reviewer can exercise the full cap-manufacturing path without waiting for long
+finite-element solves. To run the same walkthrough without interaction:
+
+```matlab
+cfg = nhpulseExampleConfig('syntheticFast');
+```
+
+To exercise real ROAST/GetDP lead-field generation on the synthetic head, use:
+
+```matlab
+cfg = nhpulseExampleConfig('syntheticRoast');
+```
+
+At the end of the walkthrough, or after a previously completed run:
+
+```matlab
+verification = nhpulseVerifySyntheticWalkthrough();
+```
+
+## Documentation
+
+- [Installation](docs/installation.md): MATLAB path setup, local paths, and
+  third-party dependencies.
+- [Synthetic Walkthrough](docs/synthetic_walkthrough.md): the supported public
+  example from synthetic anatomy to STL files.
+- [Troubleshooting](docs/troubleshooting.md): common setup, macOS quarantine,
+  ROAST, GetDP, and output-path failures.
+- [User Manual](docs/user_manual.md): conceptual workflow and where the major
+  functions fit.
+- [Configuration](docs/configuration.md): `local.paths.json` and
+  `nhpulseExampleConfig` presets.
+- [Validation](docs/validation.md): smoke tests, verification, and manual test
+  expectations.
+- [Example Data](docs/example_data.md): why generated synthetic data are used
+  instead of committing real MRI/scan products.
+- [Dependencies And Third-Party Notices](DEPENDENCIES.md): MATLAB toolboxes,
+  ROAST, SPM, iso2mesh, CVX, GetDP, Gmsh, and macaque tissue priors.
+- [Citation](CITATION.md): citations for NHPulse, ROAST, optimization methods,
+  and macaque tissue priors.
+
+## What NHPulse Adds
+
+- Synthetic ROAST-ready NHP-like anatomy for reproducible public examples.
+- ROAST-compatible wrappers for custom capMaker electrode layouts and optional
+  subject-specific tissue/implant handling.
+- Scalp, phone-scan, digitizer-trace, fiducial, headpost, chamber, ear, and
+  painted exclusion utilities.
+- Iterative tES candidate growth with surrogate prediction and UCB-style
+  exploration.
 - Sparse tES optimization and channel-count sweep utilities.
-- EEG site placement for approximately uniform scalp coverage while respecting
-  tES/manufacturing exclusions.
-- capMaker manufacturing utilities for electrode holders, rails, chin straps,
-  PLA/TPE STL export, and QC/inspection figures.
+- EEG layout interleaving that respects tES contacts and manufacturing
+  exclusions.
+- capMaker manufacturing helpers for electrode holders, rails, chin straps,
+  fit-check scaffolds, STL export, and QC/inspection figures.
 
-## Relationship to ROAST
+## Relationship To ROAST
 
 This repository includes and modifies ROAST:
 
@@ -36,130 +87,22 @@ This repository includes and modifies ROAST:
 > open-source pipeline. Journal of Neural Engineering 16(5), 2019.
 > <https://doi.org/10.1088/1741-2552/ab208d>
 
-Please see [CITATION.md](CITATION.md) for the citations to use when NHPulse or
-the underlying ROAST functionality contributes to a project. The
-upstream ROAST README is preserved at [docs/ROAST_README.md](docs/ROAST_README.md).
+The upstream ROAST README is preserved at
+[docs/ROAST_README.md](docs/ROAST_README.md). Please see
+[CITATION.md](CITATION.md) for citation details.
 
-## Quick Start
+## Caveats
 
-1. Open MATLAB from the repository root.
-2. Add NHPulse folders to the MATLAB path:
-
-   ```matlab
-   setNHPulsePath;
-   ```
-
-   If you place optional dependencies under `lib/` in the repository clone,
-   `setNHPulsePath` will also look for common folders such as `lib/spm`,
-   `lib/spm12`, `lib/cvx`, and `lib/iso2mesh`.
-
-3. Optional but recommended: create a local machine-path config. This writes
-   `local.paths.json`, which is ignored by git. For the synthetic walkthrough,
-   the defaults are enough:
-
-   ```matlab
-   P = nhpulseConfigureLocalPaths('profile', 'syntheticMwe');
-   ```
-
-   To choose folders with dialogs instead of accepting defaults:
-
-   ```matlab
-   P = nhpulseConfigureLocalPaths('profile', 'syntheticMwe', 'useGui', true);
-   ```
-
-   The config file records where generated outputs, private source data, ROAST
-   scratch products, and optional external MATLAB dependencies live on a given
-   computer. Generated data should stay outside git under `outputs/`, `data/`,
-   or a configured external data root. If MATLAB reports a read-only output
-   folder, rerun this command with `useGui=true` and choose an `outputRoot`
-   under your home directory.
-
-   If a dependency is missing, run:
-
-   ```matlab
-   report = nhpulseCheckDependencies();
-   ```
-
-   The report includes install links and the relevant `local.paths.json` field
-   for dependencies such as SPM, CVX, iso2mesh/TetGen, GetDP, and Gmsh.
-
-4. Run the synthetic smoke test to verify that the installation can generate
-   tiny ROAST-ready demo data and place a toy cap layout. This is the
-   one-command version of the first part of the walkthrough:
-
-   ```matlab
-   smokeOut = nhpulseRunSyntheticSmokeTest( ...
-       'force', true, ...
-       'showFigures', true);
-   ```
-
-   The current smoke test uses SPM for NIfTI read/write. SPM is not bundled in
-   the public repo; NHPulse supplies SPM-backed compatibility wrappers for
-   ROAST's legacy `load_untouch_nii`/`save_untouch_nii` calls. If SPM is
-   missing, the error and dependency report point to the official install
-   page and the local config field to update. On macOS, if MATLAB blocks MEX
-   files because a downloaded package cannot be verified, or if ROAST/iso2mesh
-   reports `Permission denied` for `cgalmesh`, run
-   `nhpulseClearMacQuarantine({'spm', 'cvx', 'iso2mesh'})` after configuring
-   those paths.
-
-5. Work through [exampleWalkthrough.m](exampleWalkthrough.m) one cell at a time.
-   The walkthrough expands the smoke-test path into documented cells, uses
-   interactive picker/refinement GUIs by default, uses dummy lead fields for a
-   fast tES layout-growth demonstration, and ends by writing small synthetic
-   fit-check and dual-material cap STLs.
-
-   To exercise the actual ROAST/GetDP lead-field path on the synthetic head,
-   set `cfg.leadFieldMode = 'roast'` in cell 00 before running the growth
-   section. The walkthrough times each lead-field solve so you can decide
-   whether the real-solve path is practical on your machine.
-
-The walkthrough is intentionally cell-based because several steps are
-interactive, slow, or both. ROAST/GetDP lead-field solves can take hours; the
-walkthrough includes switches for replaying cached products and for using dummy
-lead fields during software development.
-
-## Example Data
-
-Subject MRI, phone/LiDAR scans, animal photographs, and derived lead-field
-files are too large for normal git hosting and may also be sensitive. The
-repository therefore includes a synthetic data generator instead of generated
-NIfTI outputs or real scan exports. See
-[syntheticMwe/README.md](syntheticMwe/README.md) for the current smoke-test
-entry point and [docs/example_data.md](docs/example_data.md) for the broader
-example-data strategy.
-
-In brief, a public release should include:
-
-- Synthetic data generators and small dummy lead-field products for software
-  tests.
-- Small geometry-only examples for UI/manufacturing demonstrations.
-- Download instructions for any full MRI/lead-field example hosted externally.
-
-## Important Caveats
-
-- This is research software. It is not a medical device and is not validated
+- NHPulse is research software. It is not a medical device and is not validated
   for clinical decision-making.
-- Many routines assume MATLAB plus ROAST's usual external dependencies
-  including SPM, iso2mesh/TetGen/GetDP paths used by ROAST, and Image Processing
-  Toolbox functions.
-- The public-facing workflow is still under active cleanup. Start with
-  `exampleWalkthrough.m`; additional synthetic examples and automated tests
-  are planned public-development milestones.
-
-## Repository Layout
-
-- `acsUtilities/` - project-specific workflow functions and QC utilities.
-- `capMaker/` - cap geometry, voxel/mesh, and STL helpers.
-- `syntheticMwe/` - synthetic data generators and smoke-test utilities.
-- `exampleWalkthrough.m` - documented end-to-end example script.
-- `setNHPulsePath.m` and `nhpulseConfigureLocalPaths.m` - reviewer-friendly
-  setup helpers for MATLAB paths and machine-local folders.
-- `docs/ROAST_README.md` - original ROAST README retained for upstream docs.
+- Real MRI, phone/LiDAR scans, animal photographs, lead fields, and STL/G-code
+  products should remain outside git.
+- Full ROAST/GetDP solves can still be slow, even when the synthetic example is
+  small. The default walkthrough uses dummy lead fields for reviewer speed.
 
 ## License
 
 ROAST is distributed under GPL version 3 or later, with notes in
 [LICENSE.md](LICENSE.md) and [docs/ROAST_README.md](docs/ROAST_README.md).
-Unless otherwise stated, added workflow code in this repository should be
-treated as part of the same GPL-licensed research codebase.
+Unless otherwise stated, added NHPulse workflow code in this repository should
+be treated as part of the same GPL-licensed research codebase.

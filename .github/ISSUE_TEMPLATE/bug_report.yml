@@ -1,0 +1,53 @@
+name: Bug report
+description: Report a reproducible NHPulse bug
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What went wrong?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Include the MATLAB commands or walkthrough cell numbers.
+      placeholder: |
+        1. setNHPulsePath
+        2. cfg = nhpulseExampleConfig(...)
+        3. Ran cell ...
+    validations:
+      required: true
+  - type: textarea
+    id: error
+    attributes:
+      label: MATLAB error/output
+      description: Paste the complete error text or relevant command-window output.
+      render: text
+    validations:
+      required: false
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependency report
+      description: Paste relevant output from nhpulseCheckDependencies().
+      render: text
+    validations:
+      required: false
+  - type: input
+    id: matlab
+    attributes:
+      label: MATLAB version and OS
+      placeholder: "R2025a on macOS / R2024b on Windows"
+    validations:
+      required: true
+  - type: checkboxes
+    id: data
+    attributes:
+      label: Data type
+      options:
+        - label: This occurs with the synthetic walkthrough.
+        - label: This involves private real-subject data that I will not upload publicly.

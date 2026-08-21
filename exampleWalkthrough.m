@@ -34,58 +34,15 @@ if isempty(P.configFile)
         'Run nhpulseConfigureLocalPaths if you want to save machine-specific paths.\n']);
 end
 
-cfg = struct();
-cfg.subjectId = 'nhpulseSyntheticDemo';
-cfg.outputDir = fullfile(P.outputRoot, 'syntheticMwe', cfg.subjectId);
-cfg.force = true;
-cfg.showFigures = true;
-cfg.saveFigures = true;
+% The preset owns the long list of demo settings. Use syntheticFast for a
+% deterministic noninteractive dummy-leadfield run, or syntheticRoast to run
+% actual ROAST/GetDP solves on the toy head.
+cfg = nhpulseExampleConfig('syntheticReviewer');
 
-% Set true to manually exercise the picker/refinement GUIs. This is the
-% default for the public walkthrough because it demonstrates the intended
-% review/user experience. Set false for a deterministic, mostly non-blocking
-% smoke run. After a first successful pass, set cfg.force=false when you want
-% saved GUI choices and generated products to be reused.
-cfg.interactiveSelections = true;
-
-cfg.fitCheckElectrodes = 6;
-cfg.initialTesCandidates = 8;
-cfg.nGrowthSteps = 2;
-cfg.nNewCandidatesPerStep = 2;
-cfg.activeTesChannels = 4;
-cfg.nEegChannels = 4;
-% Use 'dummy' for a fast software walkthrough. Use 'roast' to run actual
-% ROAST/GetDP leadfield solves on the tiny synthetic model and time them.
-cfg.leadFieldMode = 'dummy';
-cfg.dummyLeadFieldMeshSpacingMm = 3;
-cfg.realLeadFieldResampling = 'off';
-% Use an enlarged demo disc for the optional real-ROAST path. The production
-% BioSemi-pin model is intentionally tiny and can be lost by the coarse toy
-% tetrahedral mesh, which makes for a brittle reviewer smoke test.
-cfg.realLeadFieldElectrodeModel = 'syntheticDemo';
-cfg.realLeadFieldMeshOptions = struct('radbound', 2, ...
-    'angbound', 30, 'distbound', 0.2, 'reratio', 3, 'maxvol', 2);
-cfg.realLeadFieldTagSuffix = 'airgel01';
-cfg.realLeadFieldShowFigures = false;
-cfg.targetRadiusMm = 4;
-cfg.targetOrientation = [0 0 1];
-cfg.sparseSearchMode = 'developmentHeuristic';
-cfg.headpostMarginMm = 4;
-cfg.syntheticCropAxis = [-0.112 -0.112 0.987];
-cfg.syntheticCropDistanceMm = 32.60;
-cfg.demoHeadpostScale = 0.60;
-cfg.demoHeadpostRadiusMm = 12.625 * cfg.demoHeadpostScale;
-cfg.layoutEdgeMarginMm = 3;
-cfg.layoutBedMarginMm = 1;
-cfg.layoutNormalUpDotMin = 0;
-cfg.demoElectrodeFootprintDiameterMm = 9;
-cfg.demoElectrodeClearanceMm = 0.5;
-cfg.demoMinDistanceMm = 10;
-cfg.demoEegTesClearanceMm = 10;
-cfg.fitCheckGridSurfaceMaxFaces = 220;
-cfg.finalManufacturingSurfaceMaxFaces = 350;
-cfg.finalRailSurfaceMaxFaces = 350;
-cfg.finalRailEdgeMarginMm = 2;
+% Common reviewer overrides:
+% cfg = nhpulseExampleConfig('syntheticFast', 'showFigures', false);
+% cfg = nhpulseExampleConfig('syntheticRoast');
+% cfg.force = false;  % Reuse cached selections/products after a first pass.
 
 fprintf('NHPulse synthetic walkthrough output:\n  %s\n', cfg.outputDir);
 nhpulseEnsureWritableDir(cfg.outputDir, 'synthetic walkthrough output');
@@ -580,6 +537,17 @@ elseif isfield(manufacturing, 'tpeStlFile')
 end
 
 clear restoreFigureWindowStyle;
+
+%% 13 - Verify The Synthetic Walkthrough Products
+% This lightweight check does not recompute anything. It verifies that the
+% expected files from the synthetic tutorial exist and that key MAT products
+% can be inspected.
+
+walkthroughVerification = nhpulseVerifySyntheticWalkthrough(cfg.outputDir, ...
+    'subjectId', cfg.subjectId, ...
+    'requireFinalCap', true, ...
+    'requireRealLeadField', useRealLeadFields(cfg), ...
+    'verbose', true);
 
 function opts = baseCapTargetOptions(cfg)
     if nargin < 1
