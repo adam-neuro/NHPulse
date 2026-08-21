@@ -11,6 +11,28 @@ geometry, uses ROAST-compatible tissue and lead-field products for electrical
 modeling, and records the transformations/exclusions needed to keep implants,
 ears, face regions, and printer-bed constraints consistent.
 
+## Physical Design Mental Model
+
+The practical object being designed is a flexible cap that sits on the dorsal
+scalp. The cap is manufactured in printer-bed coordinates: the crop plane is
+treated as the printer bed (`Z=0`), and cap rails/electrode holders are built
+over scalp vertices above that plane. The software then keeps cap geometry away
+from the cropped edge by configurable margins and applies additional local
+exclusions for ears, face, implants, straps, or other regions.
+
+A useful way to think about the early workflow is:
+
+1. decide which part of the head can plausibly be covered by a cap,
+2. remove local regions that should not receive cap material,
+3. place or localize implants so the cap avoids them,
+4. choose legal electrode locations on the remaining scalp,
+5. model the electrical consequences of candidate locations,
+6. export geometry that can actually be printed and inspected.
+
+Future documentation should include annotated screenshots and photographs near
+the beginning of the manual so users can see the intended final object before
+they encounter the crop and exclusion GUIs.
+
 ## Public Tutorial Workflow
 
 The supported public tutorial is:
@@ -59,6 +81,34 @@ Several functions open MATLAB figures for user selection or refinement:
 
 Most of these write MAT files so a later run can reuse saved decisions. When
 debugging a replay, prefer `force=false` after the first successful pass.
+
+### Crop-Plane Selection
+
+The crop-plane GUI asks where the printable cap footprint should end. The goal
+is not to preserve the entire head mesh. For an EEG/tES cap, include the
+top-level scalp that should receive cap mesh and exclude lower face/neck
+regions. Later exclusions handle ears, face patches, implants, and other local
+keepouts.
+
+### Ear And Painted Exclusions
+
+Ear exclusions keep cap rails and electrode holders away from ears. Painted
+vertices mark additional local areas, such as face or eyelid regions, that
+survived the crop but should not be used as electrode sites or rail endpoints.
+
+### Implant Placement
+
+Neurophysiology animals often have titanium headposts, chambers, or other
+cranial implants. Implant placement utilities help the user represent those
+objects on the head model. The resulting geometry can be used to avoid building
+cap material over exposed implants and, for some workflows, to include implant
+conductivity in electrical models.
+
+### Target Selection
+
+The target-voxel picker selects the brain location that tES optimization should
+attempt to stimulate. For real studies this target may come from MRI anatomy,
+atlas coordinates, functional data, or planned recording trajectories.
 
 ## Fit-Check Before Final Manufacturing
 

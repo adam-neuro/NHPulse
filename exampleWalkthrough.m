@@ -49,6 +49,10 @@ nhpulseEnsureWritableDir(cfg.outputDir, 'synthetic walkthrough output');
 restoreFigureWindowStyle = setTemporaryFigureWindowStyle('normal');
 
 %% 01 - Create Synthetic ROAST-Ready Anatomy
+% Objective: create non-sensitive toy anatomy that behaves like the file
+% products expected by the real workflow. Reviewers can test coordinate
+% plumbing, mesh extraction, and cap geometry without private animal data.
+%
 % This creates:
 %   *_T1.nii
 %   *_T1_T1orT2_SPM_masks.nii
@@ -68,6 +72,10 @@ disp(syntheticOut.roastReady)
 [roastFolder, t1Stem] = fileparts(syntheticOut.t1File);
 
 %% 02 - Build A ROAST-Derived Full-Head Scalp Mesh Cache
+% Objective: establish the scalp surface used by capMaker/manufacturing steps.
+% In real work this is the geometry that may later be updated with phone scans
+% or digitizer traces, and it should remain the common surface for cap layout.
+%
 % NHPulse uses a single canonical scalp surface for the capMaker side of the
 % pipeline. For real data this can later be warped to phone/LiDAR or digitizer
 % traces; this synthetic example keeps the ROAST-derived mesh unchanged.
@@ -87,6 +95,12 @@ fprintf('Full-head scalp cache mesh: %d vertices, %d faces\n', ...
     fullHeadScalp.meshStats.nVertices, fullHeadScalp.meshStats.nFaces);
 
 %% 03 - Crop The Scalp To The Printable Cap Footprint
+% Objective: decide what portion of the head should be eligible for cap
+% material. The crop plane becomes the 3D-printer bed (Z=0), and rubber/TPE cap
+% mesh is built only over scalp points above that plane. Later steps add
+% margins around the crop edge and local exclusions for ears, face, and
+% implants.
+%
 % The capMaker manufacturing frame has Z=0 at the printer-bed/crop plane. The
 % GUI is seeded with a deterministic synthetic crop plane. Use it as-is or
 % adjust it to practice the manual crop workflow.
@@ -115,6 +129,11 @@ fprintf('Printable scalp cache mesh: %d vertices, %d faces\n', ...
     capSkin.meshStats.skin.nVertices, capSkin.meshStats.skin.nFaces);
 
 %% 04 - Define Ear And Painted Manufacturing Exclusions
+% Objective: mark local regions that should not receive cap material even if
+% they are above the crop plane. Use ear spheres for ears and painted vertices
+% for face/eyelid/other local areas that should not become rail endpoints or
+% electrode sites.
+%
 % Ear exclusions keep electrodes and cap rails away from sensitive/highly
 % curved regions. With cfg.interactiveSelections=true, the GUI opens so the
 % user can practice moving the ear spheres and painting additional face/skin
@@ -135,6 +154,11 @@ earExclusions = acsSelectEarExclusionSpheres(capSkin.cacheFile, ...
     'verbose', true);
 
 %% 05 - Place A Synthetic Headpost And Build Its Cap Keepout
+% Objective: represent cranial implant geometry. Many neurophysiology animals
+% have titanium headposts, chambers, or similar implants. Cap manufacturing
+% should avoid exposed implant regions, and optional electrical models may
+% include implant conductivity.
+%
 % Real workflows can pass a Polhemus/phone-scan-derived implant trace here.
 % The synthetic walkthrough creates a circular trace, places the simplified
 % headpost STL, and then derives the tight cylindrical keepout used by cap
@@ -180,6 +204,10 @@ headpostExclusion = acsMakeHeadpostExclusionFromPlacement( ...
     'verbose', true);
 
 %% 06 - Export A Fast PLA Fit-Check STL
+% Objective: create a fast physical shape check before a long dual-material
+% print. The sparse PLA scaffold tests the cropped scalp shape and keepouts
+% without committing to the full TPE cap geometry.
+%
 % A sparse PLA scaffold is useful for gross fit checks before committing to a
 % full TPE-on-PLA print. This scaffold uses a toy marker layout and the same
 % ear/painted/headpost manufacturing keepouts used by the final cap.
@@ -229,6 +257,9 @@ fitCheck = acsBuildCapMakerFitCheckStl(fitCheckLayout, ...
 fprintf('Synthetic fit-check STL:\n  %s\n', fitCheck.stlFile);
 
 %% 07 - Mark Or Reuse Model Fiducials
+% Objective: define landmarks that let MRI, digitizer traces, phone scans, and
+% other measurements share a reference frame.
+%
 % Fiducials are used for registering digitizer/scan data to MRI/capMaker
 % space. The synthetic generator already knows the matching locations. Set
 % cfg.interactiveSelections=true to practice selecting them on the mesh.
@@ -261,6 +292,10 @@ disp(table(modelFiducials.labels(:), modelFiducials.coordinatesMm(:, 1), ...
     'VariableNames', {'Label', 'Xmm', 'Ymm', 'Zmm'}));
 
 %% 08 - Select A Brain Target Voxel
+% Objective: choose the brain location that tES optimization should attempt to
+% stimulate. Real studies may pick this from MRI anatomy, an atlas, functional
+% data, or a planned recording chamber trajectory.
+%
 % For a real experiment this is where the user chooses the target brain voxel.
 % The synthetic run uses a stored toy target unless interactive selections are
 % enabled.
@@ -301,6 +336,11 @@ save(targetVoxelFile, 'targetSelection', '-v7.3');
 fprintf('Demo target voxel: [%g %g %g]\n', targetVoxel);
 
 %% 09 - Build The Initial tES Candidate Layout
+% Objective: place an initial set of legal candidate tES contacts on scalp that
+% survived the crop, ear/face exclusions, strap constraints, and implant
+% keepouts. These candidates are possible model/electrode locations, not
+% necessarily the final active montage.
+%
 % These are candidate tES contacts, not the final active montage. The layout
 % uses the ear, strap, and headpost keepouts defined above.
 
@@ -324,6 +364,11 @@ candidateLayout = acsMakeRoastCapMakerLayout(syntheticOut, ...
     'verbose', true);
 
 %% 10 - Grow tES Candidates With Dummy Or ROAST Leadfields
+% Objective: estimate which scalp locations are most useful for focally
+% stimulating the selected target. Each iteration solves/approximates lead
+% fields, chooses a sparse active montage, and proposes new candidate contacts
+% while balancing predicted quality and exploration.
+%
 % The default dummy mode lets reviewers exercise sparse optimization and UCB
 % candidate growth quickly. Set cfg.leadFieldMode='roast' to run real
 % ROAST/GetDP leadfield solves on the tiny synthetic model and time the path.
@@ -444,6 +489,10 @@ fprintf('Selected tES contacts: %s\n', ...
     strjoin(cellstr(finalSparse.selectedNames(:))', ', '));
 
 %% 10.5 - Visualize The Real Sparse Electric Field
+% Objective: show the predicted electric field for the optimized montage when
+% real ROAST/GetDP lead fields were computed. Dummy mode skips this because it
+% is not a physical field model.
+%
 % This section is intentionally skipped in dummy mode. When cfg.leadFieldMode
 % is 'roast', it reconstructs the optimized field from the solved leadfield
 % and displays target-centered surface/slice QC.
@@ -462,6 +511,10 @@ else
 end
 
 %% 11 - Interleave EEG Electrodes Around The Optimized tES Montage
+% Objective: add EEG electrodes to the remaining legal scalp. EEG placement is
+% optimized for coverage of available scalp while avoiding tES holders and all
+% manufacturing exclusions.
+%
 % The selected tES sites are renamed customTES#, and new EEG sites are added
 % where they cover the remaining legal scalp while avoiding tES holders and
 % manufacturing exclusions.
@@ -497,6 +550,11 @@ disp(table(combinedLayout.names(:), combinedLayout.siteRoles(:), ...
     'VariableNames', {'Name', 'Role', 'Xmm', 'Ymm', 'Zmm'}));
 
 %% 12 - Export Final Dual-Material Cap STLs
+% Objective: turn the layout into printable geometry. The TPE/rubber part
+% contains flexible rails and electrode holders; the PLA part provides support
+% and underfill needed by the print process. Inspect these files before any
+% real use.
+%
 % This creates separate TPE and PLA STL files plus a manufacturing QC figure.
 % The synthetic STL is for software inspection only.
 
@@ -539,6 +597,10 @@ end
 clear restoreFigureWindowStyle;
 
 %% 13 - Verify The Synthetic Walkthrough Products
+% Objective: give reviewers a quick, file-level confirmation that the tutorial
+% reached the expected output classes. This does not prove scientific validity;
+% it catches missing products and broken plumbing.
+%
 % This lightweight check does not recompute anything. It verifies that the
 % expected files from the synthetic tutorial exist and that key MAT products
 % can be inspected.
