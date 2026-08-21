@@ -186,21 +186,7 @@ fprintf(fid,'%s\n','}');
 fclose(fid);
 
 roastRoot = fileparts(mfilename('fullpath'));
-str = computer('arch');
-switch str
-    case 'win64'
-        solverName = 'getdp.exe';
-    case 'glnxa64'
-        solverName = 'getdp';
-    case {'maci64', 'maca64'}
-        solverName = 'getdpMac';
-    otherwise
-        error('Unsupported operating system!');
-end
-solverPath = fullfile(roastRoot, 'lib', 'getdp-3.2.0', 'bin', solverName);
-if exist(solverPath, 'file') ~= 2
-    error('GetDP solver not found: %s', solverPath);
-end
+solverPath = resolveGetdpSolverPath(roastRoot);
 
 % cmd = [fileparts(which(mfilename)) filesep solverPath ' '...
 %     fileparts(which(mfilename)) filesep dirname filesep subjName '_' uniTag '.pro -solve EleSta_v -msh '...
@@ -211,14 +197,135 @@ oldDir = pwd;
 dirCleanup = onCleanup(@() cd(oldDir)); %#ok<NASGU>
 cd(dirname);
 try
-    status = system(cmd);
+    [status, solverOutput] = system(cmd);
 catch solverException
     error('GetDP solver launch failed: %s', solverException.message);
 end
 
 if status
-    error('getDP solver cannot work properly on your system. Please check any error message you got.');
+    error('solveByGetDP:GetDPFailed', ...
+        'getDP solver failed with status %d.\n\nCommand:\n%s\n\nOutput:\n%s', ...
+        status, cmd, solverOutput);
 else % after solving, delete intermediate files
     delete([dirname filesep subjName '_' uniTag '.pre']);
     delete([dirname filesep subjName '_' uniTag '.res']);
+end
+end
+
+function solverPath = resolveGetdpSolverPath(roastRoot)
+    candidates = {};
+    candidates = appendCandidate(candidates, getenv('ACS_GETDP_EXECUTABLE'));
+    try
+        P = acsPaths();
+        if isfield(P, 'getdpExecutable')
+            candidates = appendCandidate(candidates, P.getdpExecutable);
+        end
+    catch
+    end
+    candidates = [candidates; bundledGetdpCandidates(roastRoot)]; %#ok<AGROW>
+    candidates = appendCandidate(candidates, which('getdp'));
+    candidates = appendCandidate(candidates, which('getdp.exe'));
+    candidates = appendCandidate(candidates, which('getdpMac'));
+
+    checked = {};
+    for i = 1:numel(candidates)
+        candidate = char(candidates{i});
+        if isempty(candidate)
+            continue;
+        end
+        candidate = expandUserPath(candidate);
+        checked{end + 1, 1} = candidate; %#ok<AGROW>
+        if isExecutableFile(candidate)
+            solverPath = candidate;
+            return;
+        end
+    end
+
+    if isempty(checked)
+        checked = {'<none>'};
+    end
+    error('solveByGetDP:GetDPNotFound', ...
+        ['GetDP solver not found.\n\n', ...
+         'Set getdpExecutable in local.paths.json with ', ...
+         'nhpulseConfigureLocalPaths, or set ACS_GETDP_EXECUTABLE.\n\n', ...
+         'Checked:\n  %s'], strjoin(checked(:)', sprintf('\n  ')));
+end
+
+function candidates = bundledGetdpCandidates(roastRoot)
+    names = platformGetdpNames();
+    candidates = {};
+    libRoot = fullfile(roastRoot, 'lib');
+    listing = dir(fullfile(libRoot, 'getdp*'));
+    for i = 1:numel(listing)
+        if ~listing(i).isdir
+            continue;
+        end
+        base = fullfile(listing(i).folder, listing(i).name);
+        for j = 1:numel(names)
+            candidates{end + 1, 1} = fullfile(base, 'bin', names{j}); %#ok<AGROW>
+            candidates{end + 1, 1} = fullfile(base, names{j}); %#ok<AGROW>
+        end
+    end
+end
+
+function names = platformGetdpNames()
+    switch computer('arch')
+        case 'win64'
+            names = {'getdp.exe', 'getdp'};
+        case 'glnxa64'
+            names = {'getdp', 'getdp.exe'};
+        case {'maci64', 'maca64'}
+            names = {'getdp', 'getdpMac'};
+        otherwise
+            names = {'getdp', 'getdp.exe', 'getdpMac'};
+    end
+end
+
+function candidates = appendCandidate(candidates, candidate)
+    if isempty(candidate)
+        return;
+    end
+    if iscell(candidate)
+        for i = 1:numel(candidate)
+            candidates = appendCandidate(candidates, candidate{i});
+        end
+        return;
+    end
+    candidates{end + 1, 1} = char(candidate);
+end
+
+function tf = isExecutableFile(fileName)
+    if isempty(fileName) || exist(fileName, 'dir') == 7 || ...
+            exist(fileName, 'file') == 0
+        tf = false;
+        return;
+    end
+    if ispc
+        tf = true;
+        return;
+    end
+    try
+        [ok, attr] = fileattrib(fileName);
+        tf = ok && (attr.UserExecute || attr.GroupExecute || attr.OtherExecute);
+    catch
+        tf = true;
+    end
+end
+
+function p = expandUserPath(p)
+    p = char(p);
+    if isempty(p)
+        return;
+    end
+    if startsWith(p, '~')
+        homeDir = getenv('HOME');
+        if isempty(homeDir)
+            homeDir = char(java.lang.System.getProperty('user.home'));
+        end
+        if numel(p) == 1
+            p = homeDir;
+        elseif p(2) == '/' || p(2) == '\'
+            p = fullfile(homeDir, p(3:end));
+        end
+    end
 end

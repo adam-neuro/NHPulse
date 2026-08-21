@@ -123,7 +123,8 @@ function tf = hasGetDpExecutable(repoRoot, P)
     names = {'getdp', 'getdp.exe', 'getdpMac'};
     candidates = [{getField(P, 'getdpExecutable')}, ...
         cellfun(@(name) fullfile(repoRoot, 'lib', 'getdp-3.2.0', 'bin', name), ...
-        names, 'UniformOutput', false)];
+        names, 'UniformOutput', false), ...
+        bundledExecutableCandidates(repoRoot, 'getdp')];
     tf = any(cellfun(@isUsableExecutablePath, candidates)) || ...
         anyExecutableOnPath(names);
 end
@@ -136,6 +137,31 @@ function tf = hasGmshExecutable(repoRoot, P)
         {fullfile(repoRoot, 'lib', 'gmsh', 'Gmsh.app')}];
     tf = any(cellfun(@isUsableExecutablePath, candidates)) || ...
         anyExecutableOnPath(names);
+end
+
+function candidates = bundledExecutableCandidates(repoRoot, prefix)
+    candidates = {};
+    listing = dir(fullfile(repoRoot, 'lib', [prefix '*']));
+    names = executableNames(prefix);
+    for i = 1:numel(listing)
+        if ~listing(i).isdir
+            continue;
+        end
+        base = fullfile(listing(i).folder, listing(i).name);
+        for j = 1:numel(names)
+            candidates{end + 1} = fullfile(base, 'bin', names{j}); %#ok<AGROW>
+            candidates{end + 1} = fullfile(base, names{j}); %#ok<AGROW>
+        end
+    end
+end
+
+function names = executableNames(prefix)
+    switch lower(prefix)
+        case 'getdp'
+            names = {'getdp', 'getdp.exe', 'getdpMac'};
+        otherwise
+            names = {prefix, [prefix '.exe']};
+    end
 end
 
 function value = getField(S, fieldName)

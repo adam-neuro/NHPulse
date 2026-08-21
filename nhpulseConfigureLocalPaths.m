@@ -129,9 +129,7 @@ function cfg = makeDefaultConfig(opts)
     cfg.niftiPath = firstExistingFolder({ ...
         fullfile(opts.repoRoot, 'lib', 'NIFTI_20110921'), ...
         functionFolder('load_nii')});
-    cfg.getdpExecutable = firstExistingFile({ ...
-        fullfile(opts.repoRoot, 'lib', 'getdp-3.2.0', 'bin', executableName('getdp')), ...
-        whichOnPath(executableName('getdp'))});
+    cfg.getdpExecutable = firstExistingFile(getdpExecutableCandidates(opts.repoRoot));
     cfg.gmshExecutable = firstExistingFile({ ...
         fullfile(opts.repoRoot, 'lib', 'gmsh', executableName('gmsh')), ...
         fullfile(opts.repoRoot, 'lib', 'gmsh', 'Gmsh.app', 'Contents', 'MacOS', 'gmsh'), ...
@@ -435,6 +433,40 @@ function name = executableName(baseName)
         name = [baseName '.exe'];
     else
         name = baseName;
+    end
+end
+
+function candidates = getdpExecutableCandidates(repoRoot)
+    names = platformExecutableNames('getdp');
+    candidates = {};
+    listing = dir(fullfile(repoRoot, 'lib', 'getdp*'));
+    for i = 1:numel(listing)
+        if ~listing(i).isdir
+            continue;
+        end
+        base = fullfile(listing(i).folder, listing(i).name);
+        for j = 1:numel(names)
+            candidates{end + 1} = fullfile(base, 'bin', names{j}); %#ok<AGROW>
+            candidates{end + 1} = fullfile(base, names{j}); %#ok<AGROW>
+        end
+    end
+    for j = 1:numel(names)
+        candidates{end + 1} = whichOnPath(names{j}); %#ok<AGROW>
+    end
+end
+
+function names = platformExecutableNames(baseName)
+    switch computer('arch')
+        case 'win64'
+            names = {[baseName '.exe'], baseName};
+        case {'maci64', 'maca64'}
+            if strcmpi(baseName, 'getdp')
+                names = {baseName, 'getdpMac'};
+            else
+                names = {baseName};
+            end
+        otherwise
+            names = {baseName, [baseName '.exe']};
     end
 end
 
