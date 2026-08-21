@@ -12,7 +12,7 @@ function [elec,gel] = electrodePlacement(subj,template,imgHdr,landmarks,elecNeed
 if isempty(dirname), dirname = pwd; end
 
 % scalp = template.img==5;
-scalp=template.img>0; % fill in scalp first to avoid complication % ANDY 2024-03-12
+scalp = headMaskForElectrodePlacement(template);
 scalp_surface = mask2EdgePointCloud(scalp,'erode',ones(3,3,3));
 
 elecPara = options.elecPara;
@@ -156,10 +156,10 @@ disp('final clean-up...')
 volume_elec = volume_elec_C>0;
 volume_gel = volume_gel_C>0;
 volume_gel = xor(volume_gel,volume_gel & volume_elec); % remove the gel that overlaps with the electrode
-for i=1:6
+for i=gelBlockingLabels(template, options)
     volume_tissue = template.img==i;
     volume_gel = xor(volume_gel,volume_gel & volume_tissue);
-end % remove the gel that goes into other tissue masks
+end % remove gel that goes into non-air tissue masks
 
 disp('saving placed electrodes...')
 elec = template;
@@ -177,3 +177,38 @@ gel.img = uint8(volume_gel_C.*volume_gel);
 save_untouch_nii(gel,[dirname filesep subjName '_' uniTag '_mask_gel.nii']);
 
 % save([dirname filesep subjName '_' uniTag '_labelVol.mat'],'volume_elecLabel','volume_gelLabel');
+end
+
+function labels = gelBlockingLabels(template, options)
+    % ROAST hard labels are 1 white, 2 gray, 3 CSF, 4 bone, 5 skin,
+    % 6 air. Gel should be blocked from biological tissues, but it must be
+    % allowed to replace air outside the scalp. Older ROAST code removed
+    % gel from labels 1:6, which erases all gel when an explicit hard-label
+    % mask stores the background as air=6.
+    labels = 1:5;
+    if nargin < 2 || ~isstruct(options) || ~isfield(options, 'extraTissues') || ...
+            isempty(options.extraTissues)
+        return;
+    end
+    try
+        tissueCfg = roastTissueConfig(options.extraTissues);
+        if ~isempty(tissueCfg.extraTissues)
+            labels = [labels, [tissueCfg.extraTissues.label]];
+        end
+    catch
+        labels = 1:5;
+    end
+    labels = labels(ismember(labels, unique(double(template.img(:)))'));
+end
+
+function scalp = headMaskForElectrodePlacement(template)
+    % Use the filled head volume for electrode normal estimation, but do not
+    % include explicit ROAST air labels. The older template.img>0 rule is
+    % only safe for masks with zero-valued background; for hard-label ROAST
+    % masks with air=6 it turns the whole image box into "head".
+    labels = double(template.img);
+    scalp = labels > 0;
+    if any(labels(:) == 6)
+        scalp = scalp & labels ~= 6;
+    end
+end

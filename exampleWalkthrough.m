@@ -65,7 +65,7 @@ cfg.realLeadFieldResampling = 'off';
 cfg.realLeadFieldElectrodeModel = 'syntheticDemo';
 cfg.realLeadFieldMeshOptions = struct('radbound', 2, ...
     'angbound', 30, 'distbound', 0.2, 'reratio', 3, 'maxvol', 2);
-cfg.realLeadFieldTagSuffix = 'stackedgel01';
+cfg.realLeadFieldTagSuffix = 'airgel01';
 cfg.realLeadFieldShowFigures = false;
 cfg.targetRadiusMm = 4;
 cfg.targetOrientation = [0 0 1];
