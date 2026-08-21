@@ -70,11 +70,13 @@ if ~exist([dirname filesep subjName '_' uniTag '_ready.msh'],'file')
         indNode_elecElm = elem(find(elem(:,5) == numOfTissue+numOfElec+i),1:4);
 
         if isempty(indNode_gelElm)
-            error(['Gel under electrode ' elecNeeded{i} ' was not meshed properly. Reasons may be: 1) electrode size is too small so the mesher cannot capture it; 2) mesh resolution is not high enough. Consider using bigger electrodes or increasing the mesh resolution by specifying the mesh options.']);
+            error('%s', domainFailureMessage(dirname, subjName, uniTag, ...
+                numOfTissue, numOfElec, i, elecNeeded{i}, 'gel'));
         end
 
         if isempty(indNode_elecElm)
-            error(['Electrode ' elecNeeded{i} ' was not meshed properly. Reasons may be: 1) electrode size is too small so the mesher cannot capture it; 2) mesh resolution is not high enough. Consider using bigger electrodes or increasing the mesh resolution by specifying the mesh options.']);
+            error('%s', domainFailureMessage(dirname, subjName, uniTag, ...
+                numOfTissue, numOfElec, i, elecNeeded{i}, 'electrode'));
         end
 
         [faces_gel,verts_gel] = freeBoundary(TriRep(indNode_gelElm,node(:,1:3)));
@@ -131,4 +133,63 @@ if ~exist([dirname filesep subjName '_' uniTag '_ready.msh'],'file')
     fclose(fid_in);
     fclose(fid_out);
 
+end
+end
+
+function msg = domainFailureMessage(dirname, subjName, uniTag, ...
+        numOfTissue, numOfElec, elecIndex, elecName, domainType)
+    reportFile = [dirname filesep subjName '_' uniTag '_domainReport.mat'];
+    label = NaN;
+    switch lower(domainType)
+        case 'gel'
+            label = numOfTissue + elecIndex;
+            noun = ['Gel under electrode ' elecName];
+        otherwise
+            label = numOfTissue + numOfElec + elecIndex;
+            noun = ['Electrode ' elecName];
+    end
+
+    detail = '';
+    if exist(reportFile, 'file') == 2
+        try
+            S = load(reportFile, 'domainReport');
+            if isfield(S, 'domainReport')
+                detail = domainReportDetail(S.domainReport, label, domainType, ...
+                    elecIndex);
+            end
+        catch
+            detail = sprintf('\nDomain diagnostic report could not be read: %s', ...
+                reportFile);
+        end
+    else
+        detail = sprintf('\nNo domain diagnostic report was found at: %s', ...
+            reportFile);
+    end
+
+    msg = sprintf(['%s was not meshed properly.\n\n', ...
+        'Common causes are: 1) the electrode/gel mask has too few voxels, ', ...
+        '2) the tetrahedral mesh is too coarse to retain that labeled ', ...
+        'domain, or 3) cached ROAST products were reused after changing ', ...
+        'electrode or mesh settings.\n%s\n\n', ...
+        'Try increasing electrode size or tightening meshOptions; for the ', ...
+        'synthetic walkthrough, rerun with a fresh simulationTag after ', ...
+        'changing those settings.'], noun, detail);
+end
+
+function detail = domainReportDetail(report, label, domainType, elecIndex)
+    idx = find(report.labels == label, 1);
+    if isempty(idx)
+        voxelCount = 0;
+        tetCount = 0;
+        name = sprintf('%s%d', upper(domainType), elecIndex);
+    else
+        voxelCount = report.voxelCounts(idx);
+        tetCount = report.meshTetCounts(idx);
+        name = report.names{idx};
+    end
+    detail = sprintf(['\nDomain diagnostic for %s label %d:\n', ...
+        '  pre-mesh voxel count: %g\n', ...
+        '  tetrahedral element count: %g\n', ...
+        '  report: %s'], ...
+        name, label, voxelCount, tetCount, report.reportMat);
 end

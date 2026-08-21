@@ -38,6 +38,8 @@ if maxLabelValue > double(intmax('uint8'))
          'exceeds the uint8 range required by cgalv2m.'], maxLabelValue);
 end
 allMask = uint8(round(allMask));
+domainReport = initializeDomainReport(allMask, tissueCfg, numOfGel, ...
+    numOfElec);
 
 % opt.radbound = 5; % default 6, maximum surface element size
 % opt.angbound = 30; % default 30, miminum angle of a surface triangle
@@ -60,6 +62,11 @@ catch ME
     end
     rethrow(ME);
 end
+domainReport = addMeshDomainCounts(domainReport, elem);
+domainReport.meshOptions = opt;
+domainReport.reportMat = [dirname filesep subjName '_' uniTag '_domainReport.mat'];
+save(domainReport.reportMat, 'domainReport');
+printDomainReportSummary(domainReport);
 node(:,1:3) = node(:,1:3) + 0.5; % then voxel space
 
 for i=1:3, node(:,i) = node(:,i)*imgHdr(1).mat(i,i); end
@@ -90,6 +97,82 @@ for i=1:numOfGel, maskName{numOfTissue+i} = ['GEL' num2str(i)]; end
 for i=1:numOfElec, maskName{numOfTissue+numOfGel+i} = ['ELEC' num2str(i)]; end
 savemsh(node(:,1:3),elem,[dirname filesep subjName '_' uniTag '.msh'],maskName);
 save([dirname filesep subjName '_' uniTag '.mat'],'node','elem','face');
+end
+
+function report = initializeDomainReport(allMask, tissueCfg, numOfGel, numOfElec)
+    labels = (0:double(max(allMask(:))))';
+    voxelCounts = accumarray(double(allMask(:)) + 1, 1, ...
+        [numel(labels), 1], @sum, 0);
+    names = cell(numel(labels), 1);
+    for i = 1:numel(labels)
+        label = labels(i);
+        if label == 0
+            names{i} = 'background';
+        elseif label <= tissueCfg.numOfTissue
+            names{i} = tissueCfg.names{label};
+        elseif label <= tissueCfg.numOfTissue + numOfGel
+            names{i} = ['GEL' num2str(label - tissueCfg.numOfTissue)];
+        else
+            names{i} = ['ELEC' num2str(label - tissueCfg.numOfTissue - numOfGel)];
+        end
+    end
+
+    report = struct();
+    report.createdOn = char(datetime('now'));
+    report.numOfTissue = tissueCfg.numOfTissue;
+    report.numOfGel = double(numOfGel);
+    report.numOfElec = double(numOfElec);
+    report.labels = labels;
+    report.names = names;
+    report.voxelCounts = double(voxelCounts);
+    report.meshTetCounts = zeros(numel(labels), 1);
+    report.meshLabels = [];
+    report.missingGelLabels = [];
+    report.missingElectrodeLabels = [];
+end
+
+function report = addMeshDomainCounts(report, elem)
+    if isempty(elem)
+        return;
+    end
+    meshLabels = double(elem(:, 5));
+    report.meshLabels = unique(meshLabels(:));
+    maxLabel = max([report.labels(:); meshLabels(:)]);
+    if maxLabel > max(report.labels)
+        extraLabels = ((max(report.labels) + 1):maxLabel)';
+        report.labels = [report.labels; extraLabels];
+        report.names = [report.names; arrayfun(@(x) ['label' num2str(x)], ...
+            extraLabels, 'UniformOutput', false)];
+        report.voxelCounts = [report.voxelCounts; zeros(numel(extraLabels), 1)];
+        report.meshTetCounts = [report.meshTetCounts; zeros(numel(extraLabels), 1)];
+    end
+    report.meshTetCounts = accumarray(meshLabels + 1, 1, ...
+        [numel(report.labels), 1], @sum, 0);
+    gelLabels = report.numOfTissue + (1:report.numOfGel);
+    elecLabels = report.numOfTissue + report.numOfGel + (1:report.numOfElec);
+    report.missingGelLabels = gelLabels(~ismember(gelLabels, report.meshLabels));
+    report.missingElectrodeLabels = elecLabels(~ismember(elecLabels, ...
+        report.meshLabels));
+end
+
+function printDomainReportSummary(report)
+    if ~isempty(report.missingGelLabels)
+        fprintf(['Warning: CGAL mesh did not retain gel domain label(s): ', ...
+            '%s\n'], labelsToText(report.missingGelLabels));
+    end
+    if ~isempty(report.missingElectrodeLabels)
+        fprintf(['Warning: CGAL mesh did not retain electrode domain ', ...
+            'label(s): %s\n'], labelsToText(report.missingElectrodeLabels));
+    end
+    if ~isempty(report.missingGelLabels) || ...
+            ~isempty(report.missingElectrodeLabels)
+        fprintf('  Domain diagnostic report: %s\n', report.reportMat);
+    end
+end
+
+function txt = labelsToText(labels)
+    txt = strjoin(arrayfun(@num2str, labels(:)', 'UniformOutput', false), ', ');
+end
 
 function tf = isLikelyIso2meshBinaryFailure(ME)
     message = lower(ME.message);
@@ -97,3 +180,4 @@ function tf = isLikelyIso2meshBinaryFailure(ME)
         ~isempty(strfind(message, 'permission denied')) || ...
         ~isempty(strfind(message, 'output file was not found')) || ...
         ~isempty(strfind(message, 'executable'));
+end

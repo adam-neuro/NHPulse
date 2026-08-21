@@ -63,7 +63,9 @@ cfg.realLeadFieldResampling = 'off';
 % BioSemi-pin model is intentionally tiny and can be lost by the coarse toy
 % tetrahedral mesh, which makes for a brittle reviewer smoke test.
 cfg.realLeadFieldElectrodeModel = 'syntheticDemo';
-cfg.realLeadFieldMeshOptions = [];
+cfg.realLeadFieldMeshOptions = struct('radbound', 2, ...
+    'angbound', 30, 'distbound', 0.2, 'reratio', 3, 'maxvol', 2);
+cfg.realLeadFieldTagSuffix = 'meshFine01';
 cfg.realLeadFieldShowFigures = false;
 cfg.targetRadiusMm = 4;
 cfg.targetOrientation = [0 0 1];
@@ -659,8 +661,13 @@ function tag = leadFieldTagForMode(cfg, currentCount)
     if useRealLeadFields(cfg)
         modelTag = safeTagText(getFieldOrDefault( ...
             cfg, 'realLeadFieldElectrodeModel', 'auto'));
+        suffix = safeTagText(getFieldOrDefault( ...
+            cfg, 'realLeadFieldTagSuffix', ''));
         tag = sprintf('%s_roastLf%02d_%s', ...
             cfg.subjectId, currentCount, modelTag);
+        if ~isempty(suffix)
+            tag = sprintf('%s_%s', tag, suffix);
+        end
     else
         tag = sprintf('%s_dummyLf%02d', cfg.subjectId, currentCount);
     end
@@ -676,9 +683,6 @@ end
 
 function txt = safeTagText(value)
     txt = lower(regexprep(char(value), '[^A-Za-z0-9]+', ''));
-    if isempty(txt)
-        txt = 'auto';
-    end
     maxChars = 24;
     if numel(txt) > maxChars
         txt = txt(1:maxChars);
