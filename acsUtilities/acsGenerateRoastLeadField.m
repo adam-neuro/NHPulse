@@ -9,7 +9,8 @@ function out = acsGenerateRoastLeadField(roastSource, varargin)
 %   candidateMode      : 'capMaker' or 'legacy1010' ['capMaker']
 %   electrodeNames     : override custom candidate names [layout.names]
 %   referenceElectrode : basis-field reference electrode [last candidate]
-%   electrodeModel     : 'auto', 'biosemiPin', or 'roastDefault' ['auto']
+%   electrodeModel     : 'auto', 'biosemiPin', 'syntheticDemo', or
+%                        'roastDefault' ['auto']
 %   simulationTag      : ROAST simulation tag ['capMakerLeadField']
 %   resampling         : ROAST resampling option ['off']
 %   segMaskFile        : optional ROAST hard-label mask override ['']
@@ -198,11 +199,15 @@ function model = normalizeElectrodeModel(model)
             model = 'auto';
         case {'biosemipin', 'biosemi', 'biosemi-pin', 'biosemi_pin'}
             model = 'biosemiPin';
+        case {'syntheticdemo', 'demo', 'demodisc', 'toydisc', ...
+                'reviewerdemo', 'robustdemo'}
+            model = 'syntheticDemo';
         case {'roastdefault', 'default', 'legacy', 'none'}
             model = 'roastDefault';
         otherwise
             error('acsGenerateRoastLeadField:BadElectrodeModel', ...
-                'electrodeModel must be ''auto'', ''biosemiPin'', or ''roastDefault''.');
+                ['electrodeModel must be ''auto'', ''biosemiPin'', ', ...
+                 '''syntheticDemo'', or ''roastDefault''.']);
     end
 end
 
@@ -225,6 +230,16 @@ function roastOptions = electrodeModelRoastOptions(model, candidateMode)
                 'elecSize', [1 5], ...
                 'elecGelSize', [2.5 2.5], ...
                 'elecSkinGap', 0.5};
+        case 'syntheticDemo'
+            % Enlarged disc used by the public synthetic walkthrough when
+            % reviewers opt into actual ROAST/GetDP solves. It is deliberately
+            % easier for iso2mesh/CGAL to capture than the 2 mm BioSemi pin,
+            % while still exercising ROAST's electrode, gel, mesh, and solve
+            % code paths.
+            roastOptions = {'elecType', 'disc', ...
+                'elecSize', [3 4], ...
+                'elecGelSize', [3.5 3], ...
+                'elecSkinGap', 0.25};
         case 'roastDefault'
             roastOptions = {};
         otherwise

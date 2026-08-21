@@ -59,7 +59,11 @@ cfg.nEegChannels = 4;
 cfg.leadFieldMode = 'dummy';
 cfg.dummyLeadFieldMeshSpacingMm = 3;
 cfg.realLeadFieldResampling = 'off';
-cfg.realLeadFieldElectrodeModel = 'auto';
+% Use an enlarged demo disc for the optional real-ROAST path. The production
+% BioSemi-pin model is intentionally tiny and can be lost by the coarse toy
+% tetrahedral mesh, which makes for a brittle reviewer smoke test.
+cfg.realLeadFieldElectrodeModel = 'syntheticDemo';
+cfg.realLeadFieldMeshOptions = [];
 cfg.realLeadFieldShowFigures = false;
 cfg.targetRadiusMm = 4;
 cfg.targetOrientation = [0 0 1];
@@ -74,7 +78,7 @@ cfg.layoutBedMarginMm = 1;
 cfg.layoutNormalUpDotMin = 0;
 cfg.demoElectrodeFootprintDiameterMm = 7;
 cfg.demoElectrodeClearanceMm = 0.5;
-cfg.demoMinDistanceMm = 6;
+cfg.demoMinDistanceMm = 8;
 cfg.demoEegTesClearanceMm = 8;
 cfg.fitCheckGridSurfaceMaxFaces = 220;
 cfg.finalManufacturingSurfaceMaxFaces = 350;
@@ -399,6 +403,7 @@ for g = 1:(cfg.nGrowthSteps + 1)
             'resampling', cfg.realLeadFieldResampling, ...
             'segMaskFile', syntheticOut.maskFile, ...
             'electrodeModel', cfg.realLeadFieldElectrodeModel, ...
+            'roastOptions', realLeadFieldRoastOptions(cfg), ...
             'showFigures', cfg.realLeadFieldShowFigures, ...
             'execute', true, ...
             'saveReport', true);
@@ -652,9 +657,31 @@ end
 
 function tag = leadFieldTagForMode(cfg, currentCount)
     if useRealLeadFields(cfg)
-        tag = sprintf('%s_roastLf%02d', cfg.subjectId, currentCount);
+        modelTag = safeTagText(getFieldOrDefault( ...
+            cfg, 'realLeadFieldElectrodeModel', 'auto'));
+        tag = sprintf('%s_roastLf%02d_%s', ...
+            cfg.subjectId, currentCount, modelTag);
     else
         tag = sprintf('%s_dummyLf%02d', cfg.subjectId, currentCount);
+    end
+end
+
+function args = realLeadFieldRoastOptions(cfg)
+    args = {};
+    meshOptions = getFieldOrDefault(cfg, 'realLeadFieldMeshOptions', []);
+    if ~isempty(meshOptions)
+        args = [args, {'meshOptions', meshOptions}];
+    end
+end
+
+function txt = safeTagText(value)
+    txt = lower(regexprep(char(value), '[^A-Za-z0-9]+', ''));
+    if isempty(txt)
+        txt = 'auto';
+    end
+    maxChars = 24;
+    if numel(txt) > maxChars
+        txt = txt(1:maxChars);
     end
 end
 

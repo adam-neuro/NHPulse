@@ -1,4 +1,4 @@
-function out = nhpulseClearMacQuarantine(targets, varargin)
+function varargout = nhpulseClearMacQuarantine(targets, varargin)
 % NHPULSECLEARMACQUARANTINE Clear macOS quarantine and executable-bit issues.
 %
 % out = nhpulseClearMacQuarantine('cvx') clears extended attributes under
@@ -28,6 +28,9 @@ function out = nhpulseClearMacQuarantine(targets, varargin)
             'This helper only applies on macOS. No xattr command was run.');
         out = struct('isMac', false, 'targets', {targets}, ...
             'items', struct([]), 'allSucceeded', false);
+        if nargout > 0
+            varargout{1} = out;
+        end
         return;
     end
 
@@ -101,6 +104,10 @@ function out = nhpulseClearMacQuarantine(targets, varargin)
     chmodStatus = [items.chmodStatus];
     chmodOk = [items.skipped] | isnan(chmodStatus) | chmodStatus == 0;
     out.allSucceeded = all(xattrOk & chmodOk);
+
+    if nargout > 0
+        varargout{1} = out;
+    end
 end
 
 function opts = parseInputs(varargin)

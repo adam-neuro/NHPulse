@@ -1,4 +1,4 @@
-function [P, cfg] = nhpulseConfigureLocalPaths(varargin)
+function varargout = nhpulseConfigureLocalPaths(varargin)
 % NHPULSECONFIGURELOCALPATHS Create a local NHPulse path config file.
 %
 % [P, cfg] = nhpulseConfigureLocalPaths() creates or updates
@@ -64,6 +64,13 @@ function [P, cfg] = nhpulseConfigureLocalPaths(varargin)
 
     if opts.verbose
         printSummary(opts.configFile, cfg, opts.writeFile);
+    end
+
+    if nargout > 0
+        varargout{1} = P;
+    end
+    if nargout > 1
+        varargout{2} = cfg;
     end
 end
 
