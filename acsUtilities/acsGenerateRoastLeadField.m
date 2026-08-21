@@ -235,11 +235,12 @@ function roastOptions = electrodeModelRoastOptions(model, candidateMode)
             % reviewers opt into actual ROAST/GetDP solves. It is deliberately
             % easier for iso2mesh/CGAL to capture than the 2 mm BioSemi pin,
             % while still exercising ROAST's electrode, gel, mesh, and solve
-            % code paths.
+            % code paths. This intentionally uses ROAST's native stacked
+            % disc geometry instead of the BioSemi-style pin-in-gel geometry:
+            % in a 1 mm synthetic volume, the thin annular gel layer around
+            % a pin can be rounded/cleaned away entirely.
             roastOptions = {'elecType', 'disc', ...
-                'elecSize', [3 4], ...
-                'elecGelSize', [3.5 3], ...
-                'elecSkinGap', 0.25};
+                'elecSize', [4 3]};
         case 'roastDefault'
             roastOptions = {};
         otherwise

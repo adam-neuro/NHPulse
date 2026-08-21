@@ -27,6 +27,7 @@ for i=1:numOfGel
     allMask(gel.img==i) = numOfTissue + i;
 end
 numOfElec = max(elec.img(:));
+validateGelElectrodeMaskPairs(gel.img, elec.img, numOfGel, numOfElec, uniTag);
 for i=1:numOfElec
     allMask(elec.img==i) = numOfTissue + numOfGel + i;
 end
@@ -97,6 +98,42 @@ for i=1:numOfGel, maskName{numOfTissue+i} = ['GEL' num2str(i)]; end
 for i=1:numOfElec, maskName{numOfTissue+numOfGel+i} = ['ELEC' num2str(i)]; end
 savemsh(node(:,1:3),elem,[dirname filesep subjName '_' uniTag '.msh'],maskName);
 save([dirname filesep subjName '_' uniTag '.mat'],'node','elem','face');
+end
+
+function validateGelElectrodeMaskPairs(gelImg, elecImg, numOfGel, ...
+        numOfElec, uniTag)
+    gelCounts = labelVoxelCounts(gelImg, max(numOfGel, numOfElec));
+    elecCounts = labelVoxelCounts(elecImg, max(numOfGel, numOfElec));
+    if numOfGel == numOfElec && all(gelCounts(1:numOfGel) > 0) && ...
+            all(elecCounts(1:numOfElec) > 0)
+        return;
+    end
+
+    missingGel = find(gelCounts(1:max(numOfGel, numOfElec)) == 0);
+    missingElec = find(elecCounts(1:max(numOfGel, numOfElec)) == 0);
+    error('meshByIso2mesh:MissingGelElectrodeMask', ...
+        ['ROAST electrode placement wrote inconsistent gel/electrode ', ...
+         'masks for tag "%s". ROAST lead-field setup requires one ', ...
+         'nonempty gel and one nonempty electrode label per candidate.\n\n', ...
+         '  gel labels present: %d\n', ...
+         '  electrode labels present: %d\n', ...
+         '  missing/empty gel label(s): %s\n', ...
+         '  missing/empty electrode label(s): %s\n\n', ...
+         'For the synthetic walkthrough, use electrodeModel=''syntheticDemo'' ', ...
+         'from the current NHPulse version so the demo uses ROAST''s ', ...
+         'stacked disc geometry.'], ...
+        uniTag, numOfGel, numOfElec, labelsToText(missingGel), ...
+        labelsToText(missingElec));
+end
+
+function counts = labelVoxelCounts(values, nLabels)
+    values = double(values(:));
+    values = values(isfinite(values) & values > 0);
+    if isempty(values)
+        counts = zeros(max(nLabels, 0), 1);
+        return;
+    end
+    counts = accumarray(values, 1, [max([values; nLabels]), 1], @sum, 0);
 end
 
 function report = initializeDomainReport(allMask, tissueCfg, numOfGel, numOfElec)
