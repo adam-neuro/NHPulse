@@ -46,7 +46,20 @@ allMask = uint8(round(allMask));
 % opt.reratio = 3; % default 3, maximum radius-edge ratio
 % maxvol = 10; %100; % target maximum tetrahedral elem volume
 
-[node,elem,face] = cgalv2m(allMask,opt,opt.maxvol);
+try
+    [node,elem,face] = cgalv2m(allMask,opt,opt.maxvol);
+catch ME
+    if isLikelyIso2meshBinaryFailure(ME)
+        error('meshByIso2mesh:Iso2meshCgalFailed', ...
+            ['iso2mesh could not run its CGAL mesher binary.\n\n', ...
+             'On macOS this commonly means cgalmesh.%s is missing, quarantined, ', ...
+             'or not marked executable after download. From MATLAB, run:\n\n', ...
+             '    nhpulseClearMacQuarantine(''iso2mesh'')\n\n', ...
+             'Then restart MATLAB and rerun the walkthrough cell.\n\n', ...
+             'Original error:\n%s'], mexext, ME.message);
+    end
+    rethrow(ME);
+end
 node(:,1:3) = node(:,1:3) + 0.5; % then voxel space
 
 for i=1:3, node(:,i) = node(:,i)*imgHdr(1).mat(i,i); end
@@ -77,3 +90,10 @@ for i=1:numOfGel, maskName{numOfTissue+i} = ['GEL' num2str(i)]; end
 for i=1:numOfElec, maskName{numOfTissue+numOfGel+i} = ['ELEC' num2str(i)]; end
 savemsh(node(:,1:3),elem,[dirname filesep subjName '_' uniTag '.msh'],maskName);
 save([dirname filesep subjName '_' uniTag '.mat'],'node','elem','face');
+
+function tf = isLikelyIso2meshBinaryFailure(ME)
+    message = lower(ME.message);
+    tf = ~isempty(strfind(message, 'cgalmesh')) || ...
+        ~isempty(strfind(message, 'permission denied')) || ...
+        ~isempty(strfind(message, 'output file was not found')) || ...
+        ~isempty(strfind(message, 'executable'));

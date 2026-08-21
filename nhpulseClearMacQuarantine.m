@@ -1,17 +1,19 @@
 function out = nhpulseClearMacQuarantine(targets, varargin)
-% NHPULSECLEARMACQUARANTINE Clear macOS quarantine attributes on dependencies.
+% NHPULSECLEARMACQUARANTINE Clear macOS quarantine and executable-bit issues.
 %
 % out = nhpulseClearMacQuarantine('cvx') clears extended attributes under
 % acsPaths().cvxPath. Common target names are 'spm', 'cvx', 'iso2mesh',
 % 'getdp', and 'gmsh'. A direct folder/file path is also accepted.
 %
-% This is a convenience wrapper around macOS xattr for cases where MATLAB
-% reports "Invalid MEX-file" or "library load disallowed by system policy"
-% after a dependency was downloaded from the web.
+% This is a convenience wrapper around macOS xattr/chmod for cases where
+% MATLAB reports "Invalid MEX-file", "library load disallowed by system
+% policy", or "Permission denied" after a dependency was downloaded from the
+% web.
 %
 % Name-value options:
 %   configFile : optional local.paths.json override ['']
 %   mode       : 'all' or 'quarantineOnly' ['all']
+%   chmod      : mark MEX/solver helper files executable [true]
 %   dryRun     : print commands without running them [false]
 %   verbose    : print progress [true]
 
@@ -36,7 +38,8 @@ function out = nhpulseClearMacQuarantine(targets, varargin)
     end
 
     items = repmat(struct('target', '', 'path', '', 'command', '', ...
-        'status', NaN, 'output', '', 'skipped', false), numel(targets), 1);
+        'chmodCommand', '', 'status', NaN, 'chmodStatus', NaN, ...
+        'output', '', 'chmodOutput', '', 'skipped', false), numel(targets), 1);
     for i = 1:numel(targets)
         target = targets{i};
         pathToClear = resolveTargetPath(target, P);
@@ -53,20 +56,37 @@ function out = nhpulseClearMacQuarantine(targets, varargin)
         end
 
         items(i).command = xattrCommand(pathToClear, opts.mode);
+        if opts.chmod
+            items(i).chmodCommand = chmodCommand(pathToClear);
+        end
         if opts.verbose
             fprintf('Clearing macOS attributes for %s:\n  %s\n', ...
                 target, pathToClear);
             fprintf('  %s\n', items(i).command);
+            if ~isempty(items(i).chmodCommand)
+                fprintf('  %s\n', items(i).chmodCommand);
+            end
         end
         if opts.dryRun
             items(i).status = 0;
             items(i).output = 'dry run';
+            items(i).chmodStatus = 0;
+            items(i).chmodOutput = 'dry run';
         else
             [items(i).status, items(i).output] = system(items(i).command);
+            if ~isempty(items(i).chmodCommand)
+                [items(i).chmodStatus, items(i).chmodOutput] = ...
+                    system(items(i).chmodCommand);
+            end
         end
         if opts.verbose && items(i).status ~= 0
             fprintf('  xattr returned status %d:\n%s\n', ...
                 items(i).status, items(i).output);
+        end
+        if opts.verbose && ~isnan(items(i).chmodStatus) && ...
+                items(i).chmodStatus ~= 0
+            fprintf('  chmod returned status %d:\n%s\n', ...
+                items(i).chmodStatus, items(i).chmodOutput);
         end
     end
 
@@ -74,9 +94,13 @@ function out = nhpulseClearMacQuarantine(targets, varargin)
     out.createdOn = char(datetime('now'));
     out.isMac = true;
     out.mode = opts.mode;
+    out.chmod = opts.chmod;
     out.targets = targets;
     out.items = items;
-    out.allSucceeded = all([items.skipped] | [items.status] == 0);
+    xattrOk = [items.skipped] | [items.status] == 0;
+    chmodStatus = [items.chmodStatus];
+    chmodOk = [items.skipped] | isnan(chmodStatus) | chmodStatus == 0;
+    out.allSucceeded = all(xattrOk & chmodOk);
 end
 
 function opts = parseInputs(varargin)
@@ -84,6 +108,7 @@ function opts = parseInputs(varargin)
     p.FunctionName = 'nhpulseClearMacQuarantine';
     addParameter(p, 'configFile', '', @(x) ischar(x) || isstring(x));
     addParameter(p, 'mode', 'all', @(x) ischar(x) || isstring(x));
+    addParameter(p, 'chmod', true, @isBoolLike);
     addParameter(p, 'dryRun', false, @isBoolLike);
     addParameter(p, 'verbose', true, @isBoolLike);
     parse(p, varargin{:});
@@ -91,6 +116,7 @@ function opts = parseInputs(varargin)
     opts = p.Results;
     opts.configFile = char(opts.configFile);
     opts.mode = normalizeMode(opts.mode);
+    opts.chmod = logical(opts.chmod);
     opts.dryRun = logical(opts.dryRun);
     opts.verbose = logical(opts.verbose);
 end
@@ -139,9 +165,14 @@ function pathToClear = resolveTargetPath(target, P)
             pathToClear = firstExisting({getField(P, 'iso2meshPath'), ...
                 fullfile(getField(P, 'repoRoot'), 'lib', 'iso2mesh')});
         case {'getdp'}
-            pathToClear = executableParent(getField(P, 'getdpExecutable'));
+            pathToClear = firstExisting({ ...
+                executableParent(getField(P, 'getdpExecutable')), ...
+                fullfile(getField(P, 'repoRoot'), 'lib', 'getdp-3.2.0', 'bin'), ...
+                fullfile(getField(P, 'repoRoot'), 'lib', 'getdp')});
         case {'gmsh'}
-            pathToClear = executableParent(getField(P, 'gmshExecutable'));
+            pathToClear = firstExisting({ ...
+                executableParent(getField(P, 'gmshExecutable')), ...
+                fullfile(getField(P, 'repoRoot'), 'lib', 'gmsh')});
         otherwise
             pathToClear = expandUserPath(target);
     end
@@ -185,6 +216,18 @@ function cmd = xattrCommand(pathToClear, mode)
             cmd = sprintf('xattr -rc %s', q);
         case 'quarantineOnly'
             cmd = sprintf('xattr -r -d com.apple.quarantine %s 2>/dev/null', q);
+    end
+end
+
+function cmd = chmodCommand(pathToClear)
+    q = shellQuote(pathToClear);
+    if exist(pathToClear, 'file') == 2
+        cmd = sprintf('chmod u+x %s', q);
+    else
+        cmd = sprintf(['find %s -type f \( -name ''*.mex*'' -o ', ...
+            '-name ''cgalmesh*'' -o -name ''tetgen*'' -o ', ...
+            '-name ''getdp*'' -o -name ''gmsh*'' -o -name ''*.sh'' ', ...
+            '\) -exec chmod u+x {} +'], q);
     end
 end
 

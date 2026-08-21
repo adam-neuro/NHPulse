@@ -96,11 +96,12 @@ upstream ROAST README is preserved at [docs/ROAST_README.md](docs/ROAST_README.m
    The current smoke test uses SPM for NIfTI read/write. SPM is not bundled in
    the public repo; NHPulse supplies SPM-backed compatibility wrappers for
    ROAST's legacy `load_untouch_nii`/`save_untouch_nii` calls. If SPM is
-   missing, the error and dependency report point to the official SPM install
-   page and the local config field to update. On macOS, if MATLAB blocks SPM
-   or CVX MEX files because the downloaded package cannot be verified, run
-   `nhpulseClearMacQuarantine('spm')` or `nhpulseClearMacQuarantine('cvx')`
-   after configuring those paths.
+   missing, the error and dependency report point to the official install
+   page and the local config field to update. On macOS, if MATLAB blocks MEX
+   files because a downloaded package cannot be verified, or if ROAST/iso2mesh
+   reports `Permission denied` for `cgalmesh`, run
+   `nhpulseClearMacQuarantine({'spm', 'cvx', 'iso2mesh'})` after configuring
+   those paths.
 
 5. Work through [exampleWalkthrough.m](exampleWalkthrough.m) one cell at a time.
    The walkthrough expands the smoke-test path into documented cells, uses

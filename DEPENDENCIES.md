@@ -144,9 +144,10 @@ checks common local folders including `lib/spm`, `lib/spm12`, `lib/cvx`,
 ## macOS Quarantine / MEX Troubleshooting
 
 If MATLAB fails on macOS with an "Invalid MEX-file", "developer cannot be
-verified", or "library load disallowed by system policy" message, the
-downloaded dependency folder may have a Gatekeeper quarantine attribute. This
-can affect CVX, SPM, or other dependencies that contain MEX binaries.
+verified", "library load disallowed by system policy", or "Permission denied"
+message, the downloaded dependency folder may have a Gatekeeper quarantine
+attribute or a missing executable bit. This can affect CVX, SPM, iso2mesh, or
+other dependencies that contain MEX binaries and helper executables.
 
 After setting `spmPath` and/or `cvxPath` with `nhpulseConfigureLocalPaths`, run
 one of:
@@ -154,11 +155,13 @@ one of:
 ```matlab
 nhpulseClearMacQuarantine('spm')
 nhpulseClearMacQuarantine('cvx')
-nhpulseClearMacQuarantine({'spm', 'cvx'})
+nhpulseClearMacQuarantine('iso2mesh')
+nhpulseClearMacQuarantine({'spm', 'cvx', 'iso2mesh'})
 ```
 
-The helper runs the equivalent of `xattr -rc` on the configured folder. You can
-also pass a direct folder path:
+The helper runs the equivalent of `xattr -rc` on the configured folder and also
+marks common MEX/solver helper files executable. You can also pass a direct
+folder path:
 
 ```matlab
 nhpulseClearMacQuarantine('/Users/adam/Documents/MATLAB/NHPulse/lib/spm')
@@ -169,12 +172,19 @@ The same operation can be run from Terminal:
 ```bash
 xattr -rc /path/to/spm
 xattr -rc /path/to/cvx
+xattr -rc /path/to/iso2mesh
+find /path/to/iso2mesh -type f \( -name '*.mex*' -o -name 'cgalmesh*' -o -name 'tetgen*' \) -exec chmod u+x {} +
 ```
 
 Then restart MATLAB. For CVX, rerun `cvx_setup`. If `savepath` fails during CVX
 setup, that usually only means MATLAB could not write its global `pathdef.m`;
 configure CVX through `nhpulseConfigureLocalPaths` or add it from your own
 `startup.m`.
+
+For Apple Silicon MATLAB, iso2mesh must include a platform-matched mesher such
+as `lib/iso2mesh/bin/cgalmesh.mexmaca64`. If `nhpulseCheckDependencies` reports
+that this binary is missing, download the matching MEX files from the iso2mesh
+release/bin folder and then run `nhpulseClearMacQuarantine('iso2mesh')`.
 
 ## Optional Components
 

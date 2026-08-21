@@ -33,6 +33,9 @@ function report = nhpulseCheckDependencies(varargin)
     report.matlabVersion = version;
     report.repoRoot = repoRoot;
     report.products = {products.Name}';
+    report.platform = struct('arch', computer('arch'), 'mexext', mexext);
+
+    iso2mesh = iso2meshStatus(repoRoot, P);
 
     report.core = [
         dependencyItem('MATLAB', true, hasProduct(products, 'MATLAB'), 'MATLAB', ...
@@ -49,10 +52,9 @@ function report = nhpulseCheckDependencies(varargin)
             'Required by current electrode layout and nearest-neighbor utilities.');
         dependencyItem('CVX', false, hasFunction('cvx_begin'), 'CVX', ...
             'Required for sparse tES optimization routines.');
-        dependencyItem('iso2mesh/TetGen', false, ...
-            hasFunction('surf2mesh') || hasFunction('vol2mesh'), ...
+        dependencyItem('iso2mesh/TetGen', false, iso2mesh.available, ...
             'iso2mesh/TetGen', ...
-            'Required for full ROAST mesh generation; often bundled/managed through ROAST.');
+            iso2mesh.notes);
         dependencyItem('GetDP', false, hasGetDpExecutable(repoRoot, P), 'GetDP', ...
             'Required for full finite-element solves and lead-field generation.');
         dependencyItem('Gmsh', false, hasGmshExecutable(repoRoot, P), 'Gmsh', ...
@@ -64,6 +66,7 @@ function report = nhpulseCheckDependencies(varargin)
             ['Required when running ROAST paths that expect load_untouch_nii/', ...
              'save_untouch_nii. NHPulse includes SPM-backed compatibility wrappers.'])
         ];
+    report.iso2mesh = iso2mesh;
 
     report.keyFunctions = struct( ...
         'spm_vol', hasFunction('spm_vol'), ...
@@ -117,7 +120,7 @@ function tf = hasFunction(functionName)
 end
 
 function tf = hasGetDpExecutable(repoRoot, P)
-    names = {'getdp', 'getdp.exe'};
+    names = {'getdp', 'getdp.exe', 'getdpMac'};
     tf = hasConfiguredExecutable(P, 'getdpExecutable') || ...
         anyExecutableOnPath(names) || ...
         any(cellfun(@(name) exist(fullfile(repoRoot, 'lib', 'getdp-3.2.0', 'bin', name), 'file') == 2, names));
@@ -174,9 +177,93 @@ function printReport(report)
             if ~isempty(item.configField)
                 fprintf('      local.paths.json field: %s\n', item.configField);
             end
+            if ~isempty(item.notes)
+                fprintf('      Status: %s\n', item.notes);
+            end
             fprintf('      %s\n', item.setupHint);
         end
         fprintf('\n');
+    end
+end
+
+function status = iso2meshStatus(repoRoot, P)
+    folder = resolveIso2meshFolder(repoRoot, P);
+    cgalv2mPath = which('cgalv2m');
+    hasMatlabFunctions = hasFunction('cgalv2m') || ...
+        hasFunction('surf2mesh') || hasFunction('vol2mesh');
+    if isempty(folder) && ~isempty(cgalv2mPath)
+        folder = inferIso2meshRoot(cgalv2mPath);
+    end
+
+    cgalName = ['cgalmesh.' mexext];
+    cgalPath = '';
+    if ~isempty(folder)
+        cgalPath = fullfile(folder, 'bin', cgalName);
+    end
+    cgalExists = ~isempty(cgalPath) && exist(cgalPath, 'file') == 2;
+    cgalExecutable = cgalExists && isExecutableFile(cgalPath);
+    available = hasMatlabFunctions && cgalExists && cgalExecutable;
+
+    if ~hasMatlabFunctions
+        notes = 'iso2mesh MATLAB functions are not on the MATLAB path.';
+    elseif isempty(folder)
+        notes = 'iso2mesh functions are on the path, but the iso2mesh root folder could not be resolved.';
+    elseif ~cgalExists
+        notes = sprintf(['iso2mesh is on the path, but the platform CGAL ', ...
+            'mesher is missing: %s. Download the %s binary or a full iso2mesh ', ...
+            'release for this MATLAB platform.'], cgalPath, cgalName);
+    elseif ~cgalExecutable
+        notes = sprintf(['The iso2mesh CGAL mesher exists but is not executable: ', ...
+            '%s. On macOS run nhpulseClearMacQuarantine(''iso2mesh'') ', ...
+            'or chmod u+x the file.'], cgalPath);
+    else
+        notes = sprintf('iso2mesh functions and %s are available.', cgalName);
+    end
+
+    status = struct();
+    status.available = available;
+    status.folder = folder;
+    status.cgalMeshBinary = cgalPath;
+    status.hasMatlabFunctions = hasMatlabFunctions;
+    status.cgalMeshExists = cgalExists;
+    status.cgalMeshExecutable = cgalExecutable;
+    status.notes = notes;
+end
+
+function folder = resolveIso2meshFolder(repoRoot, P)
+    candidates = {};
+    if isstruct(P) && isfield(P, 'iso2meshPath') && ~isempty(P.iso2meshPath)
+        candidates{end + 1} = P.iso2meshPath; %#ok<AGROW>
+    end
+    candidates{end + 1} = fullfile(repoRoot, 'lib', 'iso2mesh'); %#ok<AGROW>
+    cgalv2mPath = which('cgalv2m');
+    if ~isempty(cgalv2mPath)
+        candidates{end + 1} = inferIso2meshRoot(cgalv2mPath); %#ok<AGROW>
+    end
+    folder = '';
+    for i = 1:numel(candidates)
+        candidate = char(candidates{i});
+        if ~isempty(candidate) && exist(candidate, 'dir') == 7
+            folder = candidate;
+            return;
+        end
+    end
+end
+
+function folder = inferIso2meshRoot(fileName)
+    folder = fileparts(fileName);
+end
+
+function tf = isExecutableFile(fileName)
+    tf = exist(fileName, 'file') == 2;
+    if tf && isunix
+        [ok, attrs] = fileattrib(fileName);
+        if ok && isstruct(attrs)
+            tf = logical(attrs.UserExecute || attrs.GroupExecute || ...
+                attrs.OtherExecute);
+        else
+            tf = false;
+        end
     end
 end
 
