@@ -1,28 +1,36 @@
 cff-version: 1.2.0
-message: "If you use NHPulse, please cite the repository and the upstream ROAST paper."
-title: "NHPulse: individualized NHP EEG/tES cap design with ROAST and capMaker"
+message: "If you use NHPulse, please cite this repository/version. If your work uses ROAST-derived modeling outputs, also cite the upstream ROAST paper listed in CITATION.md."
+title: "NHPulse: individualized non-human-primate EEG/tES cap design with ROAST and capMaker"
 type: software
 authors:
   - family-names: "Snyder"
     given-names: "Adam"
+abstract: "NHPulse is a MATLAB research workflow for individualized non-human-primate EEG/tES cap design, including synthetic examples, ROAST/capMaker integration, tES targeting, EEG interleaving, and cap-manufacturing STL export."
+keywords:
+  - "non-human primate"
+  - "transcranial electrical stimulation"
+  - "EEG"
+  - "ROAST"
+  - "3D printing"
 repository-code: "https://github.com/adam-neuro/NHPulse"
+url: "https://github.com/adam-neuro/NHPulse"
 license: "GPL-3.0-or-later"
 version: "0.1.0-alpha"
 date-released: "2026-08-21"
-preferred-citation:
-  type: article
-  title: "Realistic vOlumetric-Approach to Simulate Transcranial Electric Stimulation -- ROAST -- a fully automated open-source pipeline"
-  authors:
-    - family-names: "Huang"
-      given-names: "Yu"
-    - family-names: "Datta"
-      given-names: "Abhishek"
-    - family-names: "Bikson"
-      given-names: "Marom"
-    - family-names: "Parra"
-      given-names: "Lucas C."
-  journal: "Journal of Neural Engineering"
-  year: 2019
-  volume: 16
-  issue: 5
-  doi: "10.1088/1741-2552/ab208d"
+references:
+  - type: article
+    title: "Realistic vOlumetric-Approach to Simulate Transcranial Electric Stimulation -- ROAST -- a fully automated open-source pipeline"
+    authors:
+      - family-names: "Huang"
+        given-names: "Yu"
+      - family-names: "Datta"
+        given-names: "Abhishek"
+      - family-names: "Bikson"
+        given-names: "Marom"
+      - family-names: "Parra"
+        given-names: "Lucas C."
+    journal: "Journal of Neural Engineering"
+    year: 2019
+    volume: 16
+    issue: 5
+    doi: "10.1088/1741-2552/ab208d"
