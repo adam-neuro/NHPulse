@@ -45,6 +45,7 @@ function [P, cfg] = nhpulseConfigureLocalPaths(varargin)
     if opts.useGui
         cfg = editConfigWithDialogs(cfg, opts);
     end
+    cfg = normalizeExecutableFields(cfg);
 
     if opts.writeFile
         ensureDir(fileparts(opts.configFile));
@@ -126,6 +127,8 @@ function cfg = makeDefaultConfig(opts)
         whichOnPath(executableName('getdp'))});
     cfg.gmshExecutable = firstExistingFile({ ...
         fullfile(opts.repoRoot, 'lib', 'gmsh', executableName('gmsh')), ...
+        fullfile(opts.repoRoot, 'lib', 'gmsh', 'Gmsh.app', 'Contents', 'MacOS', 'gmsh'), ...
+        fullfile(opts.repoRoot, 'lib', 'gmsh', 'Gmsh.app', 'Contents', 'MacOS', 'Gmsh'), ...
         whichOnPath(executableName('gmsh'))});
     cfg.extraMatlabPaths = {};
 
@@ -294,6 +297,34 @@ function fileName = chooseExecutable(currentValue, titleText, helpText)
             fileName = fullfile(p, f);
         end
     end
+    fileName = normalizeExecutablePath(fileName);
+end
+
+function cfg = normalizeExecutableFields(cfg)
+    if isfield(cfg, 'getdpExecutable')
+        cfg.getdpExecutable = normalizeExecutablePath(cfg.getdpExecutable);
+    end
+    if isfield(cfg, 'gmshExecutable')
+        cfg.gmshExecutable = normalizeExecutablePath(cfg.gmshExecutable);
+    end
+end
+
+function fileName = normalizeExecutablePath(fileName)
+    fileName = normalizePath(fileName);
+    if isempty(fileName)
+        return;
+    end
+    if ismac && endsWith(fileName, '.app') && exist(fileName, 'dir') == 7
+        candidates = { ...
+            fullfile(fileName, 'Contents', 'MacOS', 'gmsh'), ...
+            fullfile(fileName, 'Contents', 'MacOS', 'Gmsh')};
+        for i = 1:numel(candidates)
+            if isExistingFile(candidates{i})
+                fileName = candidates{i};
+                return;
+            end
+        end
+    end
 end
 
 function existing = loadExistingConfig(configFile)
@@ -420,6 +451,11 @@ function pathOut = firstExistingFile(candidates)
             return;
         end
     end
+end
+
+function tf = isExistingFile(fileName)
+    tf = ~isempty(fileName) && exist(fileName, 'dir') ~= 7 && ...
+        exist(fileName, 'file') ~= 0;
 end
 
 function ensureDir(pathIn)

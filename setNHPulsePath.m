@@ -1,4 +1,4 @@
-function addedPaths = setNHPulsePath(varargin)
+function varargout = setNHPulsePath(varargin)
 % SETNHPULSEPATH Add NHPulse folders to the MATLAB path.
 %
 % addedPaths = setNHPulsePath() should be run from the top-level NHPulse
@@ -70,6 +70,9 @@ function addedPaths = setNHPulsePath(varargin)
         fprintf('\nNHPulse path configured\n');
         fprintf('  repo: %s\n', repoRoot);
         fprintf('  folders added/confirmed: %d\n\n', numel(addedPaths));
+    end
+    if nargout > 0
+        varargout{1} = addedPaths;
     end
 end
 
@@ -153,6 +156,11 @@ end
 function addedPaths = addExistingFolder(folderName, addedPaths)
     folderName = normalizePath(folderName);
     if isempty(folderName) || exist(folderName, 'dir') ~= 7
+        return;
+    end
+    folderKey = canonicalizeLight(folderName);
+    if any(strcmpi(folderKey, cellfun(@canonicalizeLight, addedPaths, ...
+            'UniformOutput', false)))
         return;
     end
     if ~isOnPath(folderName)

@@ -186,6 +186,11 @@ as `lib/iso2mesh/bin/cgalmesh.mexmaca64`. If `nhpulseCheckDependencies` reports
 that this binary is missing, download the matching MEX files from the iso2mesh
 release/bin folder and then run `nhpulseClearMacQuarantine('iso2mesh')`.
 
+For Gmsh on macOS, the GUI app bundle is not itself the command-line executable.
+If configuring manually, use `Gmsh.app/Contents/MacOS/gmsh` when present.
+`nhpulseConfigureLocalPaths` and `nhpulseCheckDependencies` also accept
+`Gmsh.app` and resolve the executable inside the bundle when possible.
+
 ## Optional Components
 
 These are useful for some workflows but are not required for the synthetic MWE:

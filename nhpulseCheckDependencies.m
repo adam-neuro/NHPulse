@@ -121,21 +121,39 @@ end
 
 function tf = hasGetDpExecutable(repoRoot, P)
     names = {'getdp', 'getdp.exe', 'getdpMac'};
-    tf = hasConfiguredExecutable(P, 'getdpExecutable') || ...
-        anyExecutableOnPath(names) || ...
-        any(cellfun(@(name) exist(fullfile(repoRoot, 'lib', 'getdp-3.2.0', 'bin', name), 'file') == 2, names));
+    candidates = [{getField(P, 'getdpExecutable')}, ...
+        cellfun(@(name) fullfile(repoRoot, 'lib', 'getdp-3.2.0', 'bin', name), ...
+        names, 'UniformOutput', false)];
+    tf = any(cellfun(@isUsableExecutablePath, candidates)) || ...
+        anyExecutableOnPath(names);
 end
 
 function tf = hasGmshExecutable(repoRoot, P)
     names = {'gmsh', 'gmsh.exe'};
-    tf = hasConfiguredExecutable(P, 'gmshExecutable') || ...
-        anyExecutableOnPath(names) || ...
-        any(cellfun(@(name) exist(fullfile(repoRoot, 'lib', 'gmsh', name), 'file') == 2, names));
+    candidates = [{getField(P, 'gmshExecutable')}, ...
+        cellfun(@(name) fullfile(repoRoot, 'lib', 'gmsh', name), ...
+        names, 'UniformOutput', false), ...
+        {fullfile(repoRoot, 'lib', 'gmsh', 'Gmsh.app')}];
+    tf = any(cellfun(@isUsableExecutablePath, candidates)) || ...
+        anyExecutableOnPath(names);
 end
 
-function tf = hasConfiguredExecutable(P, fieldName)
-    tf = isstruct(P) && isfield(P, fieldName) && ...
-        ~isempty(P.(fieldName)) && exist(P.(fieldName), 'file') == 2;
+function value = getField(S, fieldName)
+    if isstruct(S) && isfield(S, fieldName) && ~isempty(S.(fieldName))
+        value = char(S.(fieldName));
+    else
+        value = '';
+    end
+end
+
+function tf = isUsableExecutablePath(fileName)
+    fileName = char(fileName);
+    if isempty(fileName)
+        tf = false;
+        return;
+    end
+    fileName = resolveMacAppExecutable(fileName);
+    tf = isExecutableFile(fileName);
 end
 
 function tf = anyExecutableOnPath(names)
@@ -200,7 +218,7 @@ function status = iso2meshStatus(repoRoot, P)
     if ~isempty(folder)
         cgalPath = fullfile(folder, 'bin', cgalName);
     end
-    cgalExists = ~isempty(cgalPath) && exist(cgalPath, 'file') == 2;
+    cgalExists = isExistingFile(cgalPath);
     cgalExecutable = cgalExists && isExecutableFile(cgalPath);
     available = hasMatlabFunctions && cgalExists && cgalExecutable;
 
@@ -255,7 +273,8 @@ function folder = inferIso2meshRoot(fileName)
 end
 
 function tf = isExecutableFile(fileName)
-    tf = exist(fileName, 'file') == 2;
+    fileName = resolveMacAppExecutable(fileName);
+    tf = isExistingFile(fileName);
     if tf && isunix
         [ok, attrs] = fileattrib(fileName);
         if ok && isstruct(attrs)
@@ -263,6 +282,29 @@ function tf = isExecutableFile(fileName)
                 attrs.OtherExecute);
         else
             tf = false;
+        end
+    end
+end
+
+function tf = isExistingFile(fileName)
+    if isempty(fileName) || exist(fileName, 'dir') == 7
+        tf = false;
+        return;
+    end
+    tf = exist(fileName, 'file') ~= 0;
+end
+
+function fileName = resolveMacAppExecutable(fileName)
+    fileName = char(fileName);
+    if ismac && endsWith(fileName, '.app') && exist(fileName, 'dir') == 7
+        candidates = { ...
+            fullfile(fileName, 'Contents', 'MacOS', 'gmsh'), ...
+            fullfile(fileName, 'Contents', 'MacOS', 'Gmsh')};
+        for i = 1:numel(candidates)
+            if isExistingFile(candidates{i})
+                fileName = candidates{i};
+                return;
+            end
         end
     end
 end

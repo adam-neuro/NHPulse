@@ -46,7 +46,7 @@ function out = nhpulseClearMacQuarantine(targets, varargin)
         items(i).target = target;
         items(i).path = pathToClear;
         if isempty(pathToClear) || ~(exist(pathToClear, 'dir') == 7 || ...
-                exist(pathToClear, 'file') == 2)
+                isExistingFile(pathToClear))
             items(i).skipped = true;
             items(i).output = ['Path not found or not configured: ' target];
             if opts.verbose
@@ -221,14 +221,19 @@ end
 
 function cmd = chmodCommand(pathToClear)
     q = shellQuote(pathToClear);
-    if exist(pathToClear, 'file') == 2
+    if isExistingFile(pathToClear)
         cmd = sprintf('chmod u+x %s', q);
     else
-        cmd = sprintf(['find %s -type f \( -name ''*.mex*'' -o ', ...
+        cmd = sprintf(['find %s -type f \\( -name ''*.mex*'' -o ', ...
             '-name ''cgalmesh*'' -o -name ''tetgen*'' -o ', ...
             '-name ''getdp*'' -o -name ''gmsh*'' -o -name ''*.sh'' ', ...
-            '\) -exec chmod u+x {} +'], q);
+            '\\) -exec chmod u+x {} +'], q);
     end
+end
+
+function tf = isExistingFile(fileName)
+    tf = ~isempty(fileName) && exist(fileName, 'dir') ~= 7 && ...
+        exist(fileName, 'file') ~= 0;
 end
 
 function q = shellQuote(value)
