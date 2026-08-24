@@ -18,6 +18,31 @@ Open MATLAB from the repository root and run:
 setNHPulsePath;
 P = nhpulseConfigureLocalPaths('profile', 'syntheticMwe');
 report = nhpulseCheckDependencies();
+```
+
+If the report lists missing dependencies, install those packages before running
+the smoke test. A convenient local drop zone is `lib/` inside this repository;
+for example, an SPM download may be left as `lib/spm`, `lib/spm12`, or
+`lib/spm12-main`. `setNHPulsePath` searches `lib/` for diagnostic dependency
+functions rather than requiring exact folder names. You can also point NHPulse
+to dependencies installed elsewhere with:
+
+```matlab
+P = nhpulseConfigureLocalPaths('profile', 'syntheticMwe', 'useGui', true);
+```
+
+or by editing the generated `local.paths.json` file directly. Important fields
+include `spmPath`, `iso2meshPath`, `cvxPath`, `getdpExecutable`, and
+`gmshExecutable`; see [Configuration](docs/configuration.md) and
+[Dependencies And Third-Party Notices](DEPENDENCIES.md) for details.
+
+After the dependency report says the synthetic smoke test is likely runnable,
+run:
+
+```matlab
+setNHPulsePath;
+P = nhpulseConfigureLocalPaths('profile', 'syntheticMwe');
+report = nhpulseCheckDependencies();
 smokeOut = nhpulseRunSyntheticSmokeTest('force', true, 'showFigures', true);
 ```
 

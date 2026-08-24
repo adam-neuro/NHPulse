@@ -22,12 +22,14 @@ From the repository root:
 
 ```matlab
 setNHPulsePath;
+P = nhpulseConfigureLocalPaths('profile', 'syntheticMwe');
 report = nhpulseCheckDependencies();
 ```
 
 The checker is intentionally lightweight. It reports obvious missing products
 or functions, but the synthetic walkthrough remains the practical installation
-test.
+test. On a fresh clone, missing dependencies are expected; install them and
+rerun the dependency check before running the smoke test.
 
 ## Core Synthetic MWE
 
@@ -53,10 +55,11 @@ Known requirements for this path:
 - MATLAB graphics functions used by mesh and QC plots (`triangulation`,
   `isosurface`, `reducepatch`, `polyshape`).
 
-If the smoke test reports a missing dependency, run:
+If the dependency report or smoke test reports a missing dependency, run:
 
 ```matlab
 setNHPulsePath;
+P = nhpulseConfigureLocalPaths('profile', 'syntheticMwe');
 report = nhpulseCheckDependencies();
 ```
 
@@ -137,9 +140,21 @@ of these packages are redistributable under GPL-family or related licenses,
 but each project has its own terms and bundled binaries; revisit vendoring only
 with explicit license notices and version pinning.
 
-If users manually install MATLAB dependencies inside a clone, `setNHPulsePath`
-checks common local folders including `lib/spm`, `lib/spm12`, `lib/cvx`,
-`lib/iso2mesh`, and `lib/NIFTI_20110921`.
+If users manually install MATLAB dependencies inside a clone, use `lib/` as the
+local dependency drop zone. Dependency contents under `lib/` are ignored by git.
+`setNHPulsePath` checks common local folders such as `lib/spm`, `lib/spm12`,
+`lib/cvx`, `lib/iso2mesh`, and `lib/NIFTI_20110921`; it also searches under
+`lib/` for diagnostic files such as `spm_vol.m`, `vol2mesh.m`, `cvx_setup.m`,
+and `load_nii.m`, so downloads named `spm12-main` or `iso2mesh-...` do not need
+to be renamed.
+
+To configure dependencies installed elsewhere, either use GUI pickers:
+
+```matlab
+P = nhpulseConfigureLocalPaths('profile', 'syntheticMwe', 'useGui', true);
+```
+
+or edit the generated `local.paths.json` fields directly.
 
 ## macOS Quarantine / MEX Troubleshooting
 

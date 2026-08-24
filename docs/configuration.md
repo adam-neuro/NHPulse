@@ -22,6 +22,27 @@ P = nhpulseConfigureLocalPaths('profile', 'syntheticMwe', 'useGui', true);
 The generated `local.paths.json` is ignored by git. It is allowed to contain
 private paths, but it should not contain scientific source data itself.
 
+You may also edit `local.paths.json` directly. The common fields are:
+
+- `outputRoot`: generated demo files, QC figures, lead fields, STL files, and
+  verification products.
+- `dataRoot`: optional private source-data root for real MRI or scan products.
+- `roastWorkRoot`: scratch/work space for long ROAST jobs.
+- `spmPath`: SPM folder containing functions such as `spm_vol.m`.
+- `iso2meshPath`: iso2mesh folder containing functions such as `vol2mesh.m`.
+- `cvxPath`: CVX folder for sparse optimization.
+- `niftiPath`: optional legacy NIfTI helper folder. This can usually remain
+  blank because NHPulse includes SPM-backed ROAST compatibility wrappers.
+- `getdpExecutable`: full path to `getdp`, `getdp.exe`, or `getdpMac`.
+- `gmshExecutable`: full path to `gmsh`, `gmsh.exe`, or on macOS
+  `Gmsh.app/Contents/MacOS/gmsh`.
+- `extraMatlabPaths`: cell array of additional MATLAB folders to add.
+
+If you unpack dependencies into the repository-local `lib/` folder, exact
+folder names are not required for common MATLAB libraries. `setNHPulsePath`
+searches under `lib/` for diagnostic files, so `lib/spm12-main` is accepted as
+an SPM install as long as it contains `spm_vol.m`.
+
 ## Example Presets
 
 Use:

@@ -4,6 +4,10 @@ local.paths.mat
 acsUtilities/local.paths.json
 acsUtilities/local.paths.mat
 
+# Local dependency installs (SPM, CVX, iso2mesh, GetDP, Gmsh, etc.)
+lib/*
+!lib/.gitkeep
+
 # Generated data and analysis products
 data/
 outputs/
