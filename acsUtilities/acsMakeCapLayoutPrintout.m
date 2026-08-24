@@ -1,17 +1,27 @@
 function out = acsMakeCapLayoutPrintout(layoutIn, varargin)
 % ACSMAKECAPLAYOUTPRINTOUT Make a black-and-white cap wiring map.
 %
-% out = acsMakeCapLayoutPrintout(combinedLayout) draws a top-down
-% capMaker print-frame footprint with electrode positions and labels. The
-% figure is intended as a lab printout for wiring/checking cap layouts.
+% out = acsMakeCapLayoutPrintout() opens a file picker for a finalized
+% cap/layout/manufacturing MAT product and writes a PDF printout next to it.
+%
+% out = acsMakeCapLayoutPrintout(fileNameOrTag) accepts either a MAT file or a
+% cap-design tag. Tags are searched under the configured NHPulse output root.
+%
+% out = acsMakeCapLayoutPrintout(combinedLayout) draws a top-down capMaker
+% print-frame footprint with electrode positions and labels. The figure is
+% intended as a lab printout for wiring/checking cap layouts.
 %
 % Name-value options:
 %   outputFile      : optional .pdf/.png/.svg export filename ['']
+%   autoOutputFile  : when outputFile is empty, save a PDF beside source [true]
 %   titleText       : title printed above the map ['Cap electrode layout']
 %   labelMode       : 'display' or 'raw' ['display']
 %   footprintSource : 'skinCache', 'layout', or 'auto' ['auto']
 %   skinCacheFile   : explicit capMaker skin cache ['']
-%   footprintMeshStage : 'fullHead', 'cap', or 'auto' ['fullHead']
+%   footprintMeshStage : 'fullHead', 'cap', or 'auto' ['auto']
+%   searchRoot      : folder to search when fileNameOrTag is a tag ['']
+%   outputFolder    : override automatic printout folder ['']
+%   filePickerTitle : file-picker prompt ['Select cap layout/manufacturing MAT']
 %   electrodeRadiusMm : outline radius for printed markers [5]
 %   labelBackgroundAlpha : white label backing transparency [0.72]
 %   labelBackgroundPaddingMm : label backing padding in print mm [0.8]
@@ -20,13 +30,16 @@ function out = acsMakeCapLayoutPrintout(layoutIn, varargin)
 %   saveFigures     : save outputFile when provided [true]
 %   verbose         : print output summary [true]
 
-    if nargin < 1 || isempty(layoutIn)
-        error('acsMakeCapLayoutPrintout:MissingLayout', ...
-            'Provide a capMaker/ROAST layout struct or MAT file.');
+    parameterNames = inputParameterNames();
+    if nargin < 1
+        layoutIn = [];
+    elseif isNameValueKey(layoutIn, parameterNames)
+        varargin = [{layoutIn}, varargin];
+        layoutIn = [];
     end
 
     opts = parseInputs(varargin{:});
-    layout = readLayout(layoutIn);
+    [layout, sourceInfo] = readLayout(layoutIn, opts);
     [coords, names] = layoutCoordinatesAndNames(layout);
     roles = layoutSiteRoles(layout, names);
     displayNames = names;
@@ -42,7 +55,7 @@ function out = acsMakeCapLayoutPrintout(layoutIn, varargin)
     fig = makeFigure(footprintXY, coords(:, 1:2), displayNames, roles, ...
         opts, figVisible);
 
-    outputFile = opts.outputFile;
+    outputFile = resolveOutputFile(opts.outputFile, layout, sourceInfo, opts);
     if opts.saveFigures && ~isempty(outputFile)
         ensureDir(fileparts(outputFile));
         saveFigure(fig, outputFile);
@@ -61,6 +74,7 @@ function out = acsMakeCapLayoutPrintout(layoutIn, varargin)
     out.footprintXYMm = footprintXY;
     out.footprintInfo = footprintInfo;
     out.outputFile = outputFile;
+    out.sourceInfo = sourceInfo;
     out.options = opts;
     if opts.showFigures
         out.figure = fig;
@@ -72,6 +86,9 @@ function out = acsMakeCapLayoutPrintout(layoutIn, varargin)
         fprintf('\nCap layout printout\n');
         fprintf('  electrodes: %d\n', numel(names));
         fprintf('  footprint: %s\n', footprintInfo.source);
+        if ~isempty(sourceInfo.file)
+            fprintf('  source: %s\n', sourceInfo.file);
+        end
         if ~isempty(outputFile)
             fprintf('  output: %s\n', outputFile);
         end
@@ -82,11 +99,16 @@ function opts = parseInputs(varargin)
     p = inputParser;
     p.FunctionName = 'acsMakeCapLayoutPrintout';
     addParameter(p, 'outputFile', '', @(x) ischar(x) || isstring(x));
+    addParameter(p, 'autoOutputFile', true, @isBoolLike);
     addParameter(p, 'titleText', 'Cap electrode layout', @(x) ischar(x) || isstring(x));
     addParameter(p, 'labelMode', 'display', @(x) ischar(x) || isstring(x));
     addParameter(p, 'footprintSource', 'auto', @(x) ischar(x) || isstring(x));
     addParameter(p, 'skinCacheFile', '', @(x) ischar(x) || isstring(x));
-    addParameter(p, 'footprintMeshStage', 'fullHead', @(x) ischar(x) || isstring(x));
+    addParameter(p, 'footprintMeshStage', 'auto', @(x) ischar(x) || isstring(x));
+    addParameter(p, 'searchRoot', '', @(x) ischar(x) || isstring(x));
+    addParameter(p, 'outputFolder', '', @(x) ischar(x) || isstring(x));
+    addParameter(p, 'filePickerTitle', 'Select cap layout/manufacturing MAT', ...
+        @(x) ischar(x) || isstring(x));
     addParameter(p, 'electrodeRadiusMm', 5, @(x) isnumeric(x) && isscalar(x) && isfinite(x) && x > 0);
     addParameter(p, 'labelBackgroundAlpha', 0.72, ...
         @(x) isnumeric(x) && isscalar(x) && isfinite(x) && x >= 0 && x <= 1);
@@ -100,6 +122,7 @@ function opts = parseInputs(varargin)
 
     opts = p.Results;
     opts.outputFile = expandUserPath(char(opts.outputFile));
+    opts.autoOutputFile = logical(opts.autoOutputFile);
     opts.titleText = char(opts.titleText);
     opts.labelMode = validatestring(char(opts.labelMode), {'display', 'raw'}, ...
         mfilename, 'labelMode');
@@ -108,6 +131,9 @@ function opts = parseInputs(varargin)
     opts.skinCacheFile = expandUserPath(char(opts.skinCacheFile));
     opts.footprintMeshStage = validatestring(char(opts.footprintMeshStage), ...
         {'auto', 'fullHead', 'cap'}, mfilename, 'footprintMeshStage');
+    opts.searchRoot = expandUserPath(char(opts.searchRoot));
+    opts.outputFolder = expandUserPath(char(opts.outputFolder));
+    opts.filePickerTitle = char(opts.filePickerTitle);
     opts.electrodeRadiusMm = double(opts.electrodeRadiusMm);
     opts.labelBackgroundAlpha = double(opts.labelBackgroundAlpha);
     opts.labelBackgroundPaddingMm = double(opts.labelBackgroundPaddingMm);
@@ -117,49 +143,285 @@ function opts = parseInputs(varargin)
     opts.verbose = logical(opts.verbose);
 end
 
+function names = inputParameterNames()
+    names = {'outputFile', 'autoOutputFile', 'titleText', 'labelMode', ...
+        'footprintSource', 'skinCacheFile', 'footprintMeshStage', ...
+        'searchRoot', 'outputFolder', 'filePickerTitle', ...
+        'electrodeRadiusMm', 'labelBackgroundAlpha', ...
+        'labelBackgroundPaddingMm', 'pageSizeInches', 'showFigures', ...
+        'saveFigures', 'verbose'};
+end
+
+function tf = isNameValueKey(value, parameterNames)
+    tf = (ischar(value) || isstring(value)) && ...
+        any(strcmpi(char(value), parameterNames));
+end
+
 function tf = isBoolLike(x)
     tf = (islogical(x) || isnumeric(x)) && isscalar(x);
 end
 
-function layout = readLayout(layoutIn)
+function [layout, sourceInfo] = readLayout(layoutIn, opts)
+    sourceInfo = emptySourceInfo();
+    if isempty(layoutIn)
+        fileName = pickLayoutFile(opts);
+        sourceInfo.mode = 'filePicker';
+        sourceInfo.picked = true;
+        [layout, sourceInfo] = readLayoutFile(fileName, sourceInfo);
+        return;
+    end
     if isstruct(layoutIn)
         if isfield(layoutIn, 'expandedLayout') && ~isempty(layoutIn.expandedLayout)
             layout = layoutIn.expandedLayout;
         else
             layout = layoutIn;
         end
+        sourceInfo.mode = 'struct';
+        sourceInfo.file = sourceFileFromLayout(layout);
         return;
     end
     if ~(ischar(layoutIn) || isstring(layoutIn))
         error('acsMakeCapLayoutPrintout:BadLayoutInput', ...
-            'layoutIn must be a struct or MAT file.');
+            'layoutIn must be empty, a struct, MAT file, or cap-design tag.');
     end
-    fileName = expandUserPath(char(layoutIn));
+    rawInput = char(layoutIn);
+    fileName = expandUserPath(rawInput);
+    if exist(fileName, 'file') == 2
+        sourceInfo.mode = 'file';
+        [layout, sourceInfo] = readLayoutFile(fileName, sourceInfo);
+        return;
+    end
+
+    if endsWith(lower(fileName), '.mat') || looksLikeFilePath(fileName)
+        error('acsMakeCapLayoutPrintout:MissingLayoutFile', ...
+            'Layout file not found: %s', fileName);
+    end
+
+    sourceInfo.mode = 'tag';
+    sourceInfo.tag = rawInput;
+    fileName = findLayoutFileForTag(rawInput, opts);
+    [layout, sourceInfo] = readLayoutFile(fileName, sourceInfo);
+end
+
+function sourceInfo = emptySourceInfo()
+    sourceInfo = struct('mode', '', 'file', '', 'variableName', '', ...
+        'tag', '', 'picked', false);
+end
+
+function tf = looksLikeFilePath(value)
+    value = char(value);
+    tf = contains(value, '/') || contains(value, '\') || ...
+        ~isempty(regexp(value, '^[A-Za-z]:', 'once'));
+end
+
+function fileName = pickLayoutFile(opts)
+    if ~usejava('desktop')
+        error('acsMakeCapLayoutPrintout:NoDesktopPicker', ...
+            ['No layout input was provided and MATLAB desktop file picking ', ...
+             'is not available. Provide a MAT report path or cap-design tag.']);
+    end
+    startDir = defaultSearchRoot(opts);
+    [filePart, folder] = uigetfile( ...
+        {'*.mat', 'Cap layout/manufacturing MAT products (*.mat)'; ...
+         '*.*', 'All files (*.*)'}, ...
+        opts.filePickerTitle, startDir);
+    if isequal(filePart, 0)
+        error('acsMakeCapLayoutPrintout:FilePickerCancelled', ...
+            'Cap layout printout file selection was cancelled.');
+    end
+    fileName = fullfile(folder, filePart);
+end
+
+function [layout, sourceInfo] = readLayoutFile(fileName, sourceInfo)
+    fileName = expandUserPath(char(fileName));
     if exist(fileName, 'file') ~= 2
         error('acsMakeCapLayoutPrintout:MissingLayoutFile', ...
             'Layout file not found: %s', fileName);
     end
     S = load(fileName);
-    layout = firstStruct(S);
+    [layout, variableName] = firstStruct(S);
+    sourceInfo.file = fileName;
+    sourceInfo.variableName = variableName;
 end
 
-function S = firstStruct(raw)
-    preferred = {'out', 'outForSave', 'layout', 'combinedLayout'};
+function [S, variableName] = firstStruct(raw)
+    preferred = {'out', 'outForSave', 'outToSave', 'outSaved', ...
+        'layout', 'combinedLayout', 'manufacturing', 'fitCheckLayout'};
     for i = 1:numel(preferred)
-        if isfield(raw, preferred{i}) && isstruct(raw.(preferred{i}))
-            S = raw.(preferred{i});
-            return;
+        if isfield(raw, preferred{i})
+            S = canonicalLayoutCandidate(raw.(preferred{i}));
+            if ~isempty(S)
+                variableName = preferred{i};
+                return;
+            end
         end
     end
     names = fieldnames(raw);
     for i = 1:numel(names)
-        if isstruct(raw.(names{i}))
-            S = raw.(names{i});
+        S = canonicalLayoutCandidate(raw.(names{i}));
+        if ~isempty(S)
+            variableName = names{i};
             return;
         end
     end
     error('acsMakeCapLayoutPrintout:NoStructInFile', ...
-        'MAT file does not contain a readable layout struct.');
+        ['MAT file does not contain a readable layout struct. Expected ', ...
+         'names/layoutCoordinatesMm or an expandedLayout with those fields.']);
+end
+
+function layout = canonicalLayoutCandidate(value)
+    layout = [];
+    if ~isstruct(value) || isempty(value)
+        return;
+    end
+    if numel(value) > 1
+        value = value(1);
+    end
+    if isfield(value, 'expandedLayout') && isstruct(value.expandedLayout) && ...
+            looksLikeLayout(value.expandedLayout)
+        layout = value.expandedLayout;
+        return;
+    end
+    if looksLikeLayout(value)
+        layout = value;
+    end
+end
+
+function tf = looksLikeLayout(S)
+    tf = isstruct(S) && ...
+        ((isfield(S, 'layoutCoordinatesMm') && ~isempty(S.layoutCoordinatesMm)) || ...
+         (isfield(S, 'expandedLayoutCoordinatesMm') && ~isempty(S.expandedLayoutCoordinatesMm))) && ...
+        ((isfield(S, 'names') && ~isempty(S.names)) || ...
+         (isfield(S, 'expandedNames') && ~isempty(S.expandedNames)));
+end
+
+function fileName = findLayoutFileForTag(tag, opts)
+    roots = candidateSearchRoots(opts);
+    [~, tagStem, tagExt] = fileparts(char(tag));
+    if isempty(tagStem)
+        tagStem = char(tag);
+    end
+    if ~isempty(tagExt)
+        tagStem = [tagStem tagExt];
+    end
+    patterns = { ...
+        sprintf('*%s*tesEeg*customLocations*_report.mat', tagStem), ...
+        sprintf('*%s*manufacturing_report.mat', tagStem), ...
+        sprintf('*%s*customLocations*_report.mat', tagStem), ...
+        sprintf('*%s*_report.mat', tagStem), ...
+        sprintf('*%s*.mat', tagStem)};
+
+    triedRoots = strjoin(roots, newline);
+    for pIdx = 1:numel(patterns)
+        for rIdx = 1:numel(roots)
+            files = dir(fullfile(roots{rIdx}, '**', patterns{pIdx}));
+            files = files(~[files.isdir]);
+            for fIdx = 1:numel(files)
+                candidate = fullfile(files(fIdx).folder, files(fIdx).name);
+                try
+                    sourceInfo = emptySourceInfo();
+                    readLayoutFile(candidate, sourceInfo);
+                    fileName = candidate;
+                    return;
+                catch
+                end
+            end
+        end
+    end
+
+    error('acsMakeCapLayoutPrintout:TagNotFound', ...
+        ['Could not find a readable cap layout/manufacturing report ', ...
+         'matching tag "%s". Searched:\n%s'], tag, triedRoots);
+end
+
+function roots = candidateSearchRoots(opts)
+    roots = {};
+    if ~isempty(opts.searchRoot)
+        roots{end + 1} = opts.searchRoot; %#ok<AGROW>
+    end
+    try
+        if exist('acsPaths', 'file') == 2
+            P = acsPaths();
+            if isfield(P, 'outputRoot') && ~isempty(P.outputRoot)
+                roots{end + 1} = P.outputRoot; %#ok<AGROW>
+            end
+            if isfield(P, 'subjectOutputRoot') && ~isempty(P.subjectOutputRoot)
+                roots{end + 1} = P.subjectOutputRoot; %#ok<AGROW>
+            end
+        end
+    catch
+    end
+    roots{end + 1} = fullfile(pwd, 'outputs'); %#ok<AGROW>
+    roots{end + 1} = pwd; %#ok<AGROW>
+    roots = uniqueExistingDirs(roots);
+end
+
+function root = defaultSearchRoot(opts)
+    roots = candidateSearchRoots(opts);
+    if isempty(roots)
+        root = pwd;
+    else
+        root = roots{1};
+    end
+end
+
+function roots = uniqueExistingDirs(rootsIn)
+    roots = {};
+    seen = {};
+    for i = 1:numel(rootsIn)
+        root = expandUserPath(char(rootsIn{i}));
+        if isempty(root) || exist(root, 'dir') ~= 7
+            continue;
+        end
+        key = lower(char(java.io.File(root).getCanonicalPath()));
+        if any(strcmp(key, seen))
+            continue;
+        end
+        seen{end + 1} = key; %#ok<AGROW>
+        roots{end + 1} = root; %#ok<AGROW>
+    end
+end
+
+function fileName = sourceFileFromLayout(layout)
+    fileName = '';
+    fields = {'reportMat', 'customLocationsFile', 'outputFile'};
+    for i = 1:numel(fields)
+        if isfield(layout, fields{i}) && ~isempty(layout.(fields{i}))
+            candidate = expandUserPath(char(layout.(fields{i})));
+            if exist(candidate, 'file') == 2
+                fileName = candidate;
+                return;
+            end
+        end
+    end
+end
+
+function outputFile = resolveOutputFile(outputFile, layout, sourceInfo, opts)
+    outputFile = expandUserPath(char(outputFile));
+    if ~isempty(outputFile) || ~opts.autoOutputFile
+        return;
+    end
+    sourceFile = sourceInfo.file;
+    if isempty(sourceFile)
+        sourceFile = sourceFileFromLayout(layout);
+    end
+    if ~isempty(opts.outputFolder)
+        folder = opts.outputFolder;
+    elseif ~isempty(sourceFile)
+        folder = fileparts(sourceFile);
+    else
+        folder = pwd;
+    end
+    if ~isempty(sourceFile)
+        [~, stem] = fileparts(sourceFile);
+    elseif isfield(layout, 'manufacturingTag') && ~isempty(layout.manufacturingTag)
+        stem = char(layout.manufacturingTag);
+    else
+        stem = 'capLayout';
+    end
+    stem = regexprep(stem, '_report$', '');
+    stem = regexprep(stem, '_manufacturing$', '');
+    outputFile = fullfile(folder, [stem '_layoutPrintout.pdf']);
 end
 
 function [coords, names] = layoutCoordinatesAndNames(layout)
@@ -360,6 +622,29 @@ end
 
 function fileName = skinCacheFromLayout(layout)
     candidates = {};
+    if isfield(layout, 'skinSource') && isstruct(layout.skinSource) && ...
+            isfield(layout.skinSource, 'cacheFile') && ~isempty(layout.skinSource.cacheFile)
+        candidates{end + 1} = layout.skinSource.cacheFile; %#ok<AGROW>
+    end
+    if isfield(layout, 'manufacturingSurface') && isstruct(layout.manufacturingSurface)
+        if isfield(layout.manufacturingSurface, 'sourceCacheFile') && ...
+                ~isempty(layout.manufacturingSurface.sourceCacheFile)
+            candidates{end + 1} = layout.manufacturingSurface.sourceCacheFile; %#ok<AGROW>
+        end
+        if isfield(layout.manufacturingSurface, 'cacheFile') && ...
+                ~isempty(layout.manufacturingSurface.cacheFile)
+            candidates{end + 1} = layout.manufacturingSurface.cacheFile; %#ok<AGROW>
+        end
+    end
+    if isfield(layout, 'options') && isstruct(layout.options)
+        if isfield(layout.options, 'skinCacheFile') && ~isempty(layout.options.skinCacheFile)
+            candidates{end + 1} = layout.options.skinCacheFile; %#ok<AGROW>
+        end
+        if isfield(layout.options, 'skinSourceCacheFile') && ...
+                ~isempty(layout.options.skinSourceCacheFile)
+            candidates{end + 1} = layout.options.skinSourceCacheFile; %#ok<AGROW>
+        end
+    end
     if isfield(layout, 'skin') && isstruct(layout.skin) && ...
             isfield(layout.skin, 'cacheFile') && ~isempty(layout.skin.cacheFile)
         candidates{end + 1} = layout.skin.cacheFile; %#ok<AGROW>
