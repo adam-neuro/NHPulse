@@ -288,19 +288,8 @@ function customFile = inferCustomLocationsFile(t1File)
 end
 
 function [Vmask, labels] = readLabelMask(maskFile)
-    requireSpm();
-    Vmask = spm_vol(maskFile);
-    Vmask = Vmask(1);
-    labels = uint8(round(spm_read_vols(Vmask)));
-end
-
-function requireSpm()
-    if exist('spm_vol', 'file') ~= 2 || exist('spm_read_vols', 'file') ~= 2
-        error('acsMakeRoastCapMakerLayout:MissingSpm', ...
-            '%s', nhpulseMissingDependencyMessage('SPM', ...
-            'SPM is required to read ROAST label volumes.', ...
-            {'spm_vol', 'spm_read_vols'}));
-    end
+    [labelRaw, Vmask] = nhpulseReadNiftiVolume(maskFile);
+    labels = uint8(round(labelRaw));
 end
 
 function voxelSize = voxelSizesFromMat(M)

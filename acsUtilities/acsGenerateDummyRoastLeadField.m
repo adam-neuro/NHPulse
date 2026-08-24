@@ -48,8 +48,7 @@ function out = acsGenerateDummyRoastLeadField(roastSource, varargin)
     candidateSnapshot = snapshotCustomLocations(t1File, opts.simulationTag, names, opts.force);
     candidateVox = readCandidateVoxels(candidateSnapshot, names);
 
-    V = spm_vol(t1File);
-    V = V(1);
+    [~, V] = nhpulseReadNiftiVolume(t1File);
     voxelSize = canonicalVoxelSize(V);
     imageSize = double(V.dim(1:3));
     [node, elem, face, meshInfo] = makeDummyMesh(imageSize, voxelSize, opts.meshSpacingMm);

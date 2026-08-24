@@ -2,9 +2,9 @@ function nii = load_untouch_nii(fileName, varargin)
 % LOAD_UNTOUCH_NII SPM-backed compatibility wrapper for ROAST.
 %
 % NHPulse vendors ROAST code that expects the legacy NIfTI toolbox function
-% load_untouch_nii. The public walkthrough otherwise standardizes on SPM for
-% NIfTI I/O, so this small wrapper provides the subset of the legacy struct
-% interface used by ROAST/NHPulse.
+% load_untouch_nii. This wrapper provides the subset of that struct interface
+% used by ROAST/NHPulse, preferring SPM when available and falling back to a
+% simple NHPulse reader for synthetic/demo .nii files.
 
     if nargin < 1 || isempty(fileName)
         error('load_untouch_nii:MissingInput', ...
@@ -14,54 +14,71 @@ function nii = load_untouch_nii(fileName, varargin)
         warning('load_untouch_nii:IgnoredOptions', ...
             'SPM-backed load_untouch_nii ignores optional arguments.');
     end
-    requireSpm();
-
     fileName = char(fileName);
-    V = spm_vol(fileName);
-    if isempty(V)
-        error('load_untouch_nii:ReadFailed', ...
-            'SPM could not read a NIfTI header from %s.', fileName);
+    if exist('spm_vol', 'file') == 2 && exist('spm_read_vols', 'file') == 2
+        try
+            V = spm_vol(fileName);
+            if isempty(V)
+                error('load_untouch_nii:ReadFailed', ...
+                    'SPM could not read a NIfTI header from %s.', fileName);
+            end
+            img = spm_read_vols(V);
+            mat = V(1).mat;
+            imgSize = size(img);
+            if numel(imgSize) < 3
+                imgSize(3) = 1;
+            end
+            hdr = makeHeader(V, img, imgSize, mat);
+            nii = makeNiiStruct(fileName, img, hdr, mat, 'spm', V);
+            return;
+        catch ME
+            warning('load_untouch_nii:SpmReadFallback', ...
+                ['SPM could not read "%s" (%s). Falling back to ', ...
+                 'NHPulse simple NIfTI reader.'], fileName, ME.message);
+        end
     end
 
-    img = spm_read_vols(V);
-    mat = V(1).mat;
+    requireSimpleNiftiReader();
+    [img, meta] = nhpulseReadSimpleNifti(fileName);
+    mat = meta.mat;
     imgSize = size(img);
     if numel(imgSize) < 3
         imgSize(3) = 1;
     end
 
-    hdr = makeHeader(V, img, imgSize, mat);
+    hdr = makeHeader(meta, img, imgSize, mat);
+    nii = makeNiiStruct(fileName, img, hdr, mat, 'nhpulseSimpleNifti', meta);
+end
+
+function nii = makeNiiStruct(fileName, img, hdr, mat, machine, originalHeader)
     nii = struct();
     nii.hdr = hdr;
     nii.filetype = 2;
     nii.fileprefix = stripNiftiExtension(fileName);
-    nii.machine = 'spm';
+    nii.machine = machine;
     nii.img = img;
-    nii.originalSpmVol = V;
     nii.mat = mat;
     nii.untouch = 1;
+    if strcmpi(machine, 'spm')
+        nii.originalSpmVol = originalHeader;
+    else
+        nii.originalNiftiMeta = originalHeader;
+    end
 end
 
-function requireSpm()
-    missing = {};
-    if exist('spm_vol', 'file') ~= 2
-        missing{end + 1} = 'spm_vol'; %#ok<AGROW>
-    end
-    if exist('spm_read_vols', 'file') ~= 2
-        missing{end + 1} = 'spm_read_vols'; %#ok<AGROW>
-    end
-    if isempty(missing)
+function requireSimpleNiftiReader()
+    if exist('nhpulseReadSimpleNifti', 'file') == 2
         return;
     end
     if exist('nhpulseMissingDependencyMessage', 'file') == 2
-        message = nhpulseMissingDependencyMessage('SPM', ...
-            ['NHPulse is using its SPM-backed load_untouch_nii ', ...
-             'compatibility wrapper, but SPM is not available.'], missing);
+        message = nhpulseMissingDependencyMessage('SPM or NHPulse simple NIfTI reader', ...
+            ['NHPulse could not read a NIfTI file because SPM reading failed ', ...
+             'and nhpulseReadSimpleNifti is not on the MATLAB path.'], ...
+            {'spm_vol', 'spm_read_vols', 'nhpulseReadSimpleNifti'});
     else
-        message = sprintf('SPM is required. Missing: %s.', ...
-            strjoin(missing, ', '));
+        message = 'SPM reading failed and nhpulseReadSimpleNifti is missing.';
     end
-    error('load_untouch_nii:MissingSPM', '%s', message);
+    error('load_untouch_nii:MissingNiftiReader', '%s', message);
 end
 
 function hdr = makeHeader(V, img, imgSize, mat)

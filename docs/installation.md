@@ -75,13 +75,14 @@ folders and executable files.
 
 ## Dependencies
 
-The synthetic smoke test requires MATLAB, SPM for NIfTI reading, Image
-Processing Toolbox, and Statistics and Machine Learning Toolbox. Synthetic/demo
-NIfTI writes use NHPulse's simple writer when SPM's compiled writer is not
-available. Real ROAST lead-field generation additionally requires
-iso2mesh/TetGen, GetDP, and often Gmsh. Sparse optimization with CVX is
-optional for the public synthetic walkthrough because the tutorial can use a
-development heuristic.
+The synthetic smoke test requires MATLAB, NHPulse's bundled simple NIfTI
+reader/writer, Image Processing Toolbox, and Statistics and Machine Learning
+Toolbox. It is designed to run even when SPM's compiled NIfTI MEX files are
+not working on a fresh Apple Silicon install. Real ROAST/SPM segmentation and
+real lead-field generation still require a working SPM install; full
+lead-field generation additionally requires iso2mesh/TetGen, GetDP, and often
+Gmsh. Sparse optimization with CVX is optional for the public synthetic
+walkthrough because the tutorial can use a development heuristic.
 
 See [../DEPENDENCIES.md](../DEPENDENCIES.md) for install links and third-party
 notices.

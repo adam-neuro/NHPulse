@@ -36,6 +36,17 @@ include `spmPath`, `iso2meshPath`, `cvxPath`, `getdpExecutable`, and
 `gmshExecutable`; see [Configuration](docs/configuration.md) and
 [Dependencies And Third-Party Notices](DEPENDENCIES.md) for details.
 
+On macOS, freshly downloaded MATLAB dependencies may have quarantined MEX files.
+After configuring paths, clear the quarantine attribute and restart MATLAB:
+
+```matlab
+nhpulseClearMacQuarantine({'spm', 'cvx', 'iso2mesh'})
+```
+
+If you are only fixing SPM, `nhpulseClearMacQuarantine('spm')` is enough. You
+can also pass a direct folder path such as
+`nhpulseClearMacQuarantine('/Users/you/Documents/MATLAB/NHPulse/lib/spm12-main')`.
+
 After the dependency report says the synthetic smoke test is likely runnable,
 run:
 

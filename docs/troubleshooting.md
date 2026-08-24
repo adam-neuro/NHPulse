@@ -16,17 +16,19 @@ Pick a folder under your home directory.
 
 ## Missing SPM Or NIfTI Functions
 
-Errors involving `spm_vol` or `load_untouch_nii` usually mean SPM is not on the
-MATLAB path. Install SPM and configure:
+The public synthetic smoke test uses NHPulse's bundled simple NIfTI reader and
+writer for its generated toy files. Full real-subject workflows still use SPM
+heavily. Errors involving `spm_vol`, `spm_preproc_run`, or SPM segmentation
+usually mean SPM is not on the MATLAB path. Install SPM and configure:
 
 ```matlab
 P = nhpulseConfigureLocalPaths('profile', 'syntheticMwe', 'useGui', true);
 report = nhpulseCheckDependencies();
 ```
 
-NHPulse includes SPM-backed `load_untouch_nii` and `save_untouch_nii`
-compatibility wrappers, so a separate legacy NIfTI toolbox is normally not
-needed.
+NHPulse includes `load_untouch_nii` and `save_untouch_nii` compatibility
+wrappers that prefer SPM but can fall back to bundled simple NIfTI I/O for the
+synthetic/demo files. A separate legacy NIfTI toolbox is normally not needed.
 
 ## SPM MEX Files Are Not Compiled On Apple Silicon
 
@@ -36,14 +38,31 @@ show warnings such as:
 ```text
 spm_existfile is not compiled for your platform
 mat2file.c not compiled - see Makefile
+spm_slice_vol.c was not compiled
 ```
 
-This means MATLAB can see SPM functions, but at least one compiled SPM NIfTI
-helper is unavailable for the current platform. NHPulse's synthetic data writer
-and `save_untouch_nii` wrapper can fall back to `nhpulseWriteSimpleNifti`, so
-the toy smoke test should not require SPM's compiled writer. However, full SPM
-segmentation and upstream ROAST/SPM paths may still require a working,
+This means MATLAB can see SPM functions, but at least one compiled SPM
+NIfTI/resampling helper is unavailable for the current platform. NHPulse's
+synthetic smoke-test path can fall back to `nhpulseReadSimpleNifti` and
+`nhpulseWriteSimpleNifti` for the generated toy files. However, full SPM
+segmentation and upstream ROAST/SPM paths still require a working,
 platform-compatible SPM install.
+
+First confirm that you downloaded the current SPM release from the main SPM
+download page rather than an older source snapshot. If the right `.mexmaca64`
+files are present but macOS blocks them, clear quarantine:
+
+```matlab
+nhpulseClearMacQuarantine('spm')
+```
+
+or pass the exact folder:
+
+```matlab
+nhpulseClearMacQuarantine('/Users/you/Documents/MATLAB/NHPulse/lib/spm12-main')
+```
+
+Restart MATLAB afterward.
 
 To diagnose:
 

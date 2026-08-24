@@ -258,8 +258,7 @@ function voxelSize = layoutVoxelSize(layout)
         return;
     end
     if isfield(layout, 't1File') && exist(layout.t1File, 'file') == 2
-        requireSpm();
-        V = spm_vol(layout.t1File);
+        [~, V] = nhpulseReadNiftiVolume(layout.t1File);
         voxelSize = sqrt(sum(V.mat(1:3, 1:3) .^ 2, 1));
         return;
     end
@@ -268,22 +267,13 @@ function voxelSize = layoutVoxelSize(layout)
     voxelSize = [1 1 1];
 end
 
-function requireSpm()
-    if exist('spm_vol', 'file') ~= 2
-        error('acsVisualizeRoastElectrodeLayout:MissingSpm', ...
-            'SPM is required to read NIfTI files.');
-    end
-end
-
 function maskFile = inferMaskFile(t1File)
     [folder, stem] = fileparts(t1File);
     maskFile = fullfile(folder, [stem '_T1orT2_SPM_masks.nii']);
 end
 
 function surfaceMm = readScalpSurfaceMm(maskFile, voxelSize, maxSurfacePoints)
-    requireSpm();
-    V = spm_vol(maskFile);
-    labels = spm_read_vols(V);
+    labels = nhpulseReadNiftiVolume(maskFile);
     solid = labels >= 1 & labels <= 5;
     if exist('mask2EdgePointCloud', 'file') == 2
         surfaceVox = mask2EdgePointCloud(solid, 'erode', ones(3, 3, 3));

@@ -19,7 +19,6 @@ function out = acsBuildRoastScalpSkinCache(sourceIn, varargin)
     opts = parseInputs(varargin{:});
     addLocalDependencies();
     [maskFile, t1File, source, opts] = resolveInputs(sourceIn, opts);
-    requireSpmRead();
 
     if isempty(opts.outputFile)
         opts.outputFile = defaultOutputFile(maskFile, opts.outputTag);
@@ -39,9 +38,8 @@ function out = acsBuildRoastScalpSkinCache(sourceIn, varargin)
         end
     end
 
-    Vmask = spm_vol(maskFile);
-    Vmask = Vmask(1);
-    labels = uint8(round(spm_read_vols(Vmask)));
+    [labelsRaw, Vmask] = nhpulseReadNiftiVolume(maskFile);
+    labels = uint8(round(labelsRaw));
     [headMask, maskInfo] = makeCanonicalSurfaceMask(labels, Vmask, opts);
     [TRstableHead, surfaceInfo] = solidMaskToWorldSurface( ...
         headMask, Vmask.mat, opts);
@@ -181,15 +179,6 @@ function addLocalDependencies()
     end
 end
 
-function requireSpmRead()
-    if exist('spm_vol', 'file') ~= 2 || exist('spm_read_vols', 'file') ~= 2
-        error('acsBuildRoastScalpSkinCache:MissingSpm', ...
-            '%s', nhpulseMissingDependencyMessage('SPM', ...
-            'SPM is required to read ROAST/NIfTI label volumes.', ...
-            {'spm_vol', 'spm_read_vols'}));
-    end
-end
-
 function [maskFile, t1File, source, opts] = resolveInputs(sourceIn, opts)
     maskFile = opts.maskFile;
     t1File = opts.t1File;
@@ -299,9 +288,8 @@ function out = reuseOutput(cacheFile, maskFile, t1File, source, opts)
     if opts.showFigures || opts.saveFigures
         S = load(cacheFile, 'TRstableHead');
         if isfield(S, 'TRstableHead') && ~isempty(S.TRstableHead)
-            Vmask = spm_vol(maskFile);
-            Vmask = Vmask(1);
-            labels = uint8(round(spm_read_vols(Vmask)));
+            [labelsRaw, Vmask] = nhpulseReadNiftiVolume(maskFile);
+            labels = uint8(round(labelsRaw));
             [headMask, ~] = makeCanonicalSurfaceMask(labels, Vmask, opts);
             figVisible = 'off';
             if opts.showFigures
@@ -398,8 +386,7 @@ function [headMask, info] = makeCanonicalSurfaceMask(labels, Vmask, opts)
 end
 
 function [surfaceMask, info] = readSurfaceMaskFile(maskFile, Vref)
-    Vsurf = spm_vol(maskFile);
-    Vsurf = Vsurf(1);
+    [surfaceRaw, Vsurf] = nhpulseReadNiftiVolume(maskFile);
     if any(double(Vsurf.dim(1:3)) ~= double(Vref.dim(1:3)))
         error('acsBuildRoastScalpSkinCache:SurfaceMaskDimMismatch', ...
             ['Surface mask dimensions do not match the ROAST mask.\n', ...
@@ -407,7 +394,7 @@ function [surfaceMask, info] = readSurfaceMaskFile(maskFile, Vref)
             maskFile, sprintf('%d ', Vsurf.dim(1:3)), ...
             Vref.fname, sprintf('%d ', Vref.dim(1:3)));
     end
-    surfaceMask = spm_read_vols(Vsurf) > 0;
+    surfaceMask = surfaceRaw > 0;
     info = struct('file', maskFile, ...
         'role', 'canonical external head mask', ...
         'voxelCount', nnz(surfaceMask));

@@ -42,12 +42,10 @@ lead fields, interleaves EEG sites, and writes small dual-material cap STLs.
 Known requirements for this path:
 
 - MATLAB.
-- SPM on the MATLAB path for NIfTI read functions such as `spm_vol` and
-  `spm_read_vols`.
-  NHPulse includes SPM-backed compatibility wrappers for ROAST's legacy
-  `load_untouch_nii` calls and a simple fallback writer for synthetic/demo
-  outputs, so reviewers do not need a separate NIfTI toolbox for the
-  walkthrough.
+- NHPulse's bundled simple NIfTI reader/writer (`nhpulseReadSimpleNifti`,
+  `nhpulseWriteSimpleNifti`, and `nhpulseReadNiftiVolume`) for the generated
+  toy T1/mask files. The public synthetic path should not require working SPM
+  MEX files just to read/write these simple uncompressed NIfTIs.
 - MATLAB Image Processing Toolbox for morphology, connected components, and
   volume smoothing (`bwconncomp`, `imdilate`, `imerode`, `imreconstruct`,
   `imgaussfilt3`, `imfill`).
@@ -75,6 +73,8 @@ subjects:
 - ROAST, including its expected SPM-based segmentation and field-solver
   workflow. NHPulse currently vendors a modified ROAST copy for reviewer/user
   reproducibility.
+- SPM with platform-compatible MEX files for real-subject segmentation,
+  resampling, and many ROAST/SPM utilities.
 - iso2mesh/TetGen for volumetric meshing.
 - GetDP for finite-element solves and lead-field generation.
 - Gmsh for ROAST/GetDP mesh and visualization workflows.
@@ -203,11 +203,12 @@ that this binary is missing, download the matching MEX files from the iso2mesh
 release/bin folder and then run `nhpulseClearMacQuarantine('iso2mesh')`.
 
 On Apple Silicon Macs, SPM downloads may expose MATLAB `.m` files but lack
-working platform-specific NIfTI writer MEX files. Symptoms include
-`spm_existfile is not compiled for your platform` or `mat2file.c not compiled -
-see Makefile`. NHPulse synthetic/demo writes use `nhpulseWriteSimpleNifti` as a
-fallback, but full SPM segmentation may still require a platform-compatible SPM
-install.
+working platform-specific NIfTI/resampling MEX files. Symptoms include
+`spm_existfile is not compiled for your platform`, `mat2file.c not compiled -
+see Makefile`, or `spm_slice_vol.c was not compiled`. NHPulse's public
+synthetic smoke test uses bundled simple NIfTI read/write fallbacks for its toy
+files, but full SPM segmentation and upstream ROAST/SPM paths still require a
+platform-compatible SPM install.
 
 For Gmsh on macOS, the GUI app bundle is not itself the command-line executable.
 If configuring manually, use `Gmsh.app/Contents/MacOS/gmsh` when present.
@@ -240,6 +241,8 @@ dependency-sensitive functions:
 
 - SPM functions: `spm_vol`, `spm_read_vols`, `spm_write_vol`,
   `spm_preproc_run`, `spm_jobman`, and related sampling/TPM utilities.
+- NHPulse simple NIfTI functions: `nhpulseReadSimpleNifti`,
+  `nhpulseWriteSimpleNifti`, and `nhpulseReadNiftiVolume`.
 - Image Processing Toolbox functions: `bwconncomp`, `imreconstruct`,
   `imdilate`, `imerode`, `imclose`, `imfill`, `imgaussfilt3`, `bwdist`.
 - Statistics and Machine Learning Toolbox functions: `pdist2`, `knnsearch`.
