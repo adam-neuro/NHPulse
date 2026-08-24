@@ -42,11 +42,12 @@ lead fields, interleaves EEG sites, and writes small dual-material cap STLs.
 Known requirements for this path:
 
 - MATLAB.
-- SPM on the MATLAB path for NIfTI read/write functions such as `spm_vol`,
-  `spm_read_vols`, `spm_write_vol`, and `spm_type`.
+- SPM on the MATLAB path for NIfTI read functions such as `spm_vol` and
+  `spm_read_vols`.
   NHPulse includes SPM-backed compatibility wrappers for ROAST's legacy
-  `load_untouch_nii` and `save_untouch_nii` calls, so reviewers do not need
-  a separate NIfTI toolbox for the walkthrough.
+  `load_untouch_nii` calls and a simple fallback writer for synthetic/demo
+  outputs, so reviewers do not need a separate NIfTI toolbox for the
+  walkthrough.
 - MATLAB Image Processing Toolbox for morphology, connected components, and
   volume smoothing (`bwconncomp`, `imdilate`, `imerode`, `imreconstruct`,
   `imgaussfilt3`, `imfill`).
@@ -200,6 +201,13 @@ For Apple Silicon MATLAB, iso2mesh must include a platform-matched mesher such
 as `lib/iso2mesh/bin/cgalmesh.mexmaca64`. If `nhpulseCheckDependencies` reports
 that this binary is missing, download the matching MEX files from the iso2mesh
 release/bin folder and then run `nhpulseClearMacQuarantine('iso2mesh')`.
+
+On Apple Silicon Macs, SPM downloads may expose MATLAB `.m` files but lack
+working platform-specific NIfTI writer MEX files. Symptoms include
+`spm_existfile is not compiled for your platform` or `mat2file.c not compiled -
+see Makefile`. NHPulse synthetic/demo writes use `nhpulseWriteSimpleNifti` as a
+fallback, but full SPM segmentation may still require a platform-compatible SPM
+install.
 
 For Gmsh on macOS, the GUI app bundle is not itself the command-line executable.
 If configuring manually, use `Gmsh.app/Contents/MacOS/gmsh` when present.

@@ -42,7 +42,6 @@ function out = nhpulseCreateSyntheticRoastReadyData(outputDir, varargin)
     opts = parseInputs(parameterNames, varargin{:});
     outputDir = char(outputDir);
     addLocalDependencies();
-    requireSpmWrite();
 
     ensureDir(outputDir);
     paths = outputPaths(outputDir, opts.subjectId);
@@ -189,20 +188,6 @@ function addLocalDependencies()
         addpath(repoRoot);
     end
     setNHPulsePath('repoRoot', repoRoot, 'verbose', false);
-    spmDir = fullfile(repoRoot, 'lib', 'spm12');
-    if exist(spmDir, 'dir') == 7
-        addpath(spmDir);
-    end
-end
-
-function requireSpmWrite()
-    if exist('spm_write_vol', 'file') ~= 2 || ...
-            exist('spm_type', 'file') ~= 2
-        error('nhpulseCreateSyntheticRoastReadyData:MissingSpm', ...
-            '%s', nhpulseMissingDependencyMessage('SPM', ...
-            'SPM is required to write the synthetic NIfTI files.', ...
-            {'spm_write_vol', 'spm_type'}));
-    end
 end
 
 function outputDir = defaultOutputDir()
@@ -319,14 +304,7 @@ function mat = makeSpmVoxelMatrix(voxelSizeMm, originOffsetMm)
 end
 
 function writeNifti(fileName, data, mat, spmTypeName, description)
-    V = struct();
-    V.fname = fileName;
-    V.dim = size(data);
-    V.dt = [spm_type(spmTypeName) 0];
-    V.mat = mat;
-    V.pinfo = [1; 0; 0];
-    V.descrip = description;
-    spm_write_vol(V, data);
+    nhpulseWriteSimpleNifti(fileName, data, mat, spmTypeName, description);
 end
 
 function fiducials = makeModelFiducials(geometry, paths, opts)

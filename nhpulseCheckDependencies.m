@@ -36,12 +36,13 @@ function report = nhpulseCheckDependencies(varargin)
     report.platform = struct('arch', computer('arch'), 'mexext', mexext);
 
     iso2mesh = iso2meshStatus(repoRoot, P);
+    spm = spmStatus();
 
     report.core = [
         dependencyItem('MATLAB', true, hasProduct(products, 'MATLAB'), 'MATLAB', ...
             'Required runtime/development environment.');
-        dependencyItem('SPM', true, hasFunction('spm_vol') && hasFunction('spm_write_vol'), 'SPM', ...
-            'Required for NIfTI read/write and ROAST/SPM segmentation paths.');
+        dependencyItem('SPM', true, spm.readAvailable, 'SPM', ...
+            spm.notes);
         dependencyItem('Image Processing Toolbox', true, ...
             hasProduct(products, 'Image Processing Toolbox') && hasFunction('bwconncomp'), ...
             'Image Processing Toolbox', ...
@@ -61,16 +62,22 @@ function report = nhpulseCheckDependencies(varargin)
             'Used by ROAST/GetDP visualization and mesh workflows.');
         dependencyItem('ROAST NIfTI compatibility', false, ...
             hasFunction('load_untouch_nii') && hasFunction('save_untouch_nii') && ...
-            hasFunction('spm_vol') && hasFunction('spm_write_vol'), ...
+            spm.readAvailable && hasFunction('nhpulseWriteSimpleNifti'), ...
             'ROAST NIfTI compatibility', ...
             ['Required when running ROAST paths that expect load_untouch_nii/', ...
-             'save_untouch_nii. NHPulse includes SPM-backed compatibility wrappers.'])
+             'save_untouch_nii. NHPulse includes SPM-backed read and simple-write ', ...
+             'compatibility wrappers.'])
         ];
     report.iso2mesh = iso2mesh;
+    report.spm = spm;
 
     report.keyFunctions = struct( ...
         'spm_vol', hasFunction('spm_vol'), ...
+        'spm_read_vols', hasFunction('spm_read_vols'), ...
+        'spm_read_volsWorks', spm.readWorks, ...
         'spm_write_vol', hasFunction('spm_write_vol'), ...
+        'spm_write_volWorks', spm.writeWorks, ...
+        'nhpulseWriteSimpleNifti', hasFunction('nhpulseWriteSimpleNifti'), ...
         'load_untouch_nii', hasFunction('load_untouch_nii'), ...
         'save_untouch_nii', hasFunction('save_untouch_nii'), ...
         'bwconncomp', hasFunction('bwconncomp'), ...
@@ -85,9 +92,11 @@ function report = nhpulseCheckDependencies(varargin)
     report.syntheticSmokeLikely = all([ ...
         report.core(strcmp({report.core.name}, 'SPM')).available, ...
         report.core(strcmp({report.core.name}, 'Image Processing Toolbox')).available, ...
-        report.core(strcmp({report.core.name}, 'Statistics and Machine Learning Toolbox')).available]);
+        report.core(strcmp({report.core.name}, 'Statistics and Machine Learning Toolbox')).available, ...
+        hasFunction('nhpulseWriteSimpleNifti')]);
 
     report.fullWorkflowLikely = report.syntheticSmokeLikely && ...
+        spm.writeWorks && ...
         report.core(strcmp({report.core.name}, 'ROAST NIfTI compatibility')).available && ...
         report.core(strcmp({report.core.name}, 'CVX')).available && ...
         report.core(strcmp({report.core.name}, 'iso2mesh/TetGen')).available && ...
@@ -193,6 +202,120 @@ function tf = anyExecutableOnPath(names)
     end
 end
 
+function status = spmStatus()
+    status = struct();
+    status.hasReadFunctions = hasFunction('spm_vol') && hasFunction('spm_read_vols');
+    status.hasWriteFunctions = hasFunction('spm_write_vol') && hasFunction('spm_type');
+    status.readWorks = false;
+    status.readError = '';
+    status.writeWorks = false;
+    status.writeError = '';
+    status.readAvailable = false;
+
+    if status.hasReadFunctions && hasFunction('nhpulseWriteSimpleNifti')
+        [status.readWorks, status.readError] = spmCanReadTinyNifti();
+    end
+    status.readAvailable = status.readWorks;
+
+    if status.hasWriteFunctions
+        [status.writeWorks, status.writeError] = spmCanWriteTinyNifti();
+    end
+
+    if ~status.hasReadFunctions
+        status.notes = ['SPM read functions are missing. Required for NIfTI ', ...
+            'reading and ROAST/SPM segmentation paths.'];
+    elseif ~status.readWorks
+        status.notes = ['SPM read functions are on the MATLAB path, but SPM ', ...
+            'could not read a tiny NIfTI file. This often means downloaded ', ...
+            'SPM MEX files are not compiled or cleared for this platform.'];
+        if ~isempty(status.readError)
+            status.notes = sprintf('%s Last SPM read error: %s', ...
+                status.notes, status.readError);
+        end
+    elseif status.writeWorks
+        status.notes = ['SPM read/write functions are available. Required ', ...
+            'for NIfTI reading and ROAST/SPM segmentation paths.'];
+    elseif status.hasWriteFunctions
+        status.notes = ['SPM read functions are available, but SPM could ', ...
+            'not write a tiny NIfTI file. This often means downloaded SPM ', ...
+            'MEX files are not compiled or cleared for this platform. ', ...
+            'NHPulse synthetic/demo writes can use nhpulseWriteSimpleNifti, ', ...
+            'but full SPM segmentation may still need a working SPM install.'];
+        if ~isempty(status.writeError)
+            status.notes = sprintf('%s Last SPM write error: %s', ...
+                status.notes, status.writeError);
+        end
+    else
+        status.notes = ['SPM read functions are available, but SPM write ', ...
+            'functions are missing. NHPulse synthetic/demo writes can use ', ...
+            'nhpulseWriteSimpleNifti, but full SPM segmentation may still ', ...
+            'need a complete SPM install.'];
+    end
+end
+
+function [tf, message] = spmCanReadTinyNifti()
+    tf = false;
+    message = '';
+    fileName = [tempname '.nii'];
+    warningState = warning;
+    cleanup = onCleanup(@() restoreWarningAndDelete(warningState, fileName));
+    try
+        warning('off', 'all');
+        nhpulseWriteSimpleNifti(fileName, uint8(ones(2, 2, 2)), eye(4), ...
+            'uint8', 'NHPulse SPM read probe');
+        V = spm_vol(fileName);
+        data = spm_read_vols(V);
+        tf = isequal(size(data), [2 2 2]) && all(data(:) == 1);
+        if ~tf
+            message = 'SPM read returned unexpected data for the tiny NIfTI probe.';
+        end
+    catch ME
+        message = compactErrorMessage(ME.message);
+    end
+    clear cleanup
+end
+
+function [tf, message] = spmCanWriteTinyNifti()
+    tf = false;
+    message = '';
+    fileName = [tempname '.nii'];
+    warningState = warning;
+    cleanup = onCleanup(@() restoreWarningAndDelete(warningState, fileName));
+    try
+        warning('off', 'all');
+        V = struct();
+        V.fname = fileName;
+        V.dim = [2 2 2];
+        V.dt = [2 0];
+        V.mat = eye(4);
+        V.pinfo = [1; 0; 0];
+        V.descrip = 'NHPulse SPM write probe';
+        spm_write_vol(V, uint8(ones(2, 2, 2)));
+        tf = exist(fileName, 'file') == 2;
+    catch ME
+        message = compactErrorMessage(ME.message);
+    end
+    clear cleanup
+end
+
+function restoreWarningAndDelete(warningState, fileName)
+    warning(warningState);
+    if exist(fileName, 'file') == 2
+        try
+            delete(fileName);
+        catch
+        end
+    end
+end
+
+function txt = compactErrorMessage(txt)
+    txt = regexprep(char(txt), '\s+', ' ');
+    maxLen = 240;
+    if numel(txt) > maxLen
+        txt = [txt(1:maxLen - 3) '...'];
+    end
+end
+
 function printReport(report)
     fprintf('\nNHPulse dependency check\n');
     fprintf('  MATLAB: %s\n', report.matlabVersion);
@@ -211,6 +334,12 @@ function printReport(report)
     end
     fprintf('\n  synthetic smoke test likely runnable: %s\n', yesNo(report.syntheticSmokeLikely));
     fprintf('  full lead-field workflow likely runnable: %s\n\n', yesNo(report.fullWorkflowLikely));
+    if isfield(report, 'spm') && report.spm.hasReadFunctions && ...
+            (~report.spm.readWorks || ...
+             (report.spm.hasWriteFunctions && ~report.spm.writeWorks))
+        fprintf('  SPM note:\n');
+        fprintf('    %s\n\n', report.spm.notes);
+    end
     missing = report.core(~[report.core.available]);
     if ~isempty(missing)
         fprintf('  Missing dependency help:\n');

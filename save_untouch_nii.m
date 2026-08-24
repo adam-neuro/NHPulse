@@ -2,7 +2,8 @@ function save_untouch_nii(nii, fileName)
 % SAVE_UNTOUCH_NII SPM-backed compatibility wrapper for ROAST.
 %
 % This provides the small subset of the legacy NIfTI toolbox writer used by
-% ROAST/NHPulse. It writes 3D images and simple 4D image series via SPM.
+% ROAST/NHPulse. It prefers SPM when available, but falls back to a simple
+% NHPulse writer when SPM's compiled mat2file MEX is unavailable.
 
     if nargin < 1 || ~isstruct(nii) || ~isfield(nii, 'img')
         error('save_untouch_nii:InvalidInput', ...
@@ -16,8 +17,6 @@ function save_untouch_nii(nii, fileName)
                 'A target filename is required when nii.fileprefix is empty.');
         end
     end
-    requireSpm();
-
     fileName = char(fileName);
     img = nii.img;
     imgSize = size(img);
@@ -39,34 +38,29 @@ function save_untouch_nii(nii, fileName)
         delete(fileName);
     end
 
-    if numel(imgSize) <= 3 || imgSize(4) == 1
-        spm_write_vol(baseVol, img(:, :, :, 1));
-    else
-        for iFrame = 1:imgSize(4)
-            frameVol = baseVol;
-            frameVol.n = [iFrame 1];
-            spm_write_vol(frameVol, img(:, :, :, iFrame));
+    if exist('spm_write_vol', 'file') == 2
+        try
+            if numel(imgSize) <= 3 || imgSize(4) == 1
+                spm_write_vol(baseVol, img(:, :, :, 1));
+            else
+                for iFrame = 1:imgSize(4)
+                    frameVol = baseVol;
+                    frameVol.n = [iFrame 1];
+                    spm_write_vol(frameVol, img(:, :, :, iFrame));
+                end
+            end
+            return;
+        catch ME
+            if exist(fileName, 'file') == 2
+                delete(fileName);
+            end
+            warning('save_untouch_nii:SpmWriteFallback', ...
+                ['SPM could not write "%s" (%s). Falling back to ', ...
+                 'NHPulse simple NIfTI writer.'], fileName, ME.message);
         end
     end
-end
-
-function requireSpm()
-    missing = {};
-    if exist('spm_write_vol', 'file') ~= 2
-        missing{end + 1} = 'spm_write_vol'; %#ok<AGROW>
-    end
-    if isempty(missing)
-        return;
-    end
-    if exist('nhpulseMissingDependencyMessage', 'file') == 2
-        message = nhpulseMissingDependencyMessage('SPM', ...
-            ['NHPulse is using its SPM-backed save_untouch_nii ', ...
-             'compatibility wrapper, but SPM is not available.'], missing);
-    else
-        message = sprintf('SPM is required. Missing: %s.', ...
-            strjoin(missing, ', '));
-    end
-    error('save_untouch_nii:MissingSPM', '%s', message);
+    nhpulseWriteSimpleNifti(fileName, img, baseVol.mat, baseVol.dt(1), ...
+        baseVol.descrip);
 end
 
 function V = makeVolumeStruct(nii, fileName, imgSize)

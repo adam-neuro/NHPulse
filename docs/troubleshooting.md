@@ -16,8 +16,8 @@ Pick a folder under your home directory.
 
 ## Missing SPM Or NIfTI Functions
 
-Errors involving `spm_vol`, `spm_write_vol`, or `load_untouch_nii` usually mean
-SPM is not on the MATLAB path. Install SPM and configure:
+Errors involving `spm_vol` or `load_untouch_nii` usually mean SPM is not on the
+MATLAB path. Install SPM and configure:
 
 ```matlab
 P = nhpulseConfigureLocalPaths('profile', 'syntheticMwe', 'useGui', true);
@@ -27,6 +27,31 @@ report = nhpulseCheckDependencies();
 NHPulse includes SPM-backed `load_untouch_nii` and `save_untouch_nii`
 compatibility wrappers, so a separate legacy NIfTI toolbox is normally not
 needed.
+
+## SPM MEX Files Are Not Compiled On Apple Silicon
+
+On Apple Silicon Macs, source-only or platform-mismatched SPM downloads may
+show warnings such as:
+
+```text
+spm_existfile is not compiled for your platform
+mat2file.c not compiled - see Makefile
+```
+
+This means MATLAB can see SPM functions, but at least one compiled SPM NIfTI
+helper is unavailable for the current platform. NHPulse's synthetic data writer
+and `save_untouch_nii` wrapper can fall back to `nhpulseWriteSimpleNifti`, so
+the toy smoke test should not require SPM's compiled writer. However, full SPM
+segmentation and upstream ROAST/SPM paths may still require a working,
+platform-compatible SPM install.
+
+To diagnose:
+
+```matlab
+setNHPulsePath;
+report = nhpulseCheckDependencies();
+report.spm
+```
 
 ## macOS Blocks MEX Files
 
