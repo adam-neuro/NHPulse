@@ -51,6 +51,9 @@ description.
   prediction and UCB-style acquisition.
 - `acsAssembleTesEegCapMakerLayout`: interleave EEG electrodes around selected
   tES sites.
+- `acsShowTesStimulationParameters`: reload a saved sparse/layout/manufacturing
+  product and display the final tES current recipe, with optional replay of
+  saved electric-field and EEG topography figures.
 
 ## Manufacturing And QC
 

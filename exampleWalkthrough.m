@@ -549,6 +549,26 @@ disp(table(combinedLayout.names(:), combinedLayout.siteRoles(:), ...
     combinedLayout.layoutCoordinatesMm(:, 3), ...
     'VariableNames', {'Name', 'Role', 'Xmm', 'Ymm', 'Zmm'}));
 
+%% 11.5 - Review The tES Stimulation Parameters
+% Objective: display the final tES current recipe in a lab-facing table. This
+% utility can also be run later from a clean workspace with no arguments, or
+% with a saved layout/manufacturing report MAT file or tag.
+%
+% In dummy mode this is just a plumbing check. In ROAST mode, it can replay the
+% saved electric-field figure when the solved lead-field products are present.
+
+stimulationFieldReplayMode = 'never';
+if useRealLeadFields(cfg)
+    stimulationFieldReplayMode = 'auto';
+end
+
+stimulationReview = acsShowTesStimulationParameters(combinedLayout, ...
+    'sparseResult', finalSparse, ...
+    'showField', stimulationFieldReplayMode, ...
+    'showEegTopography', 'auto', ...
+    'saveFigures', cfg.saveFigures, ...
+    'verbose', true);
+
 %% 12 - Export Final Dual-Material Cap STLs
 % Objective: turn the layout into printable geometry. The TPE/rubber part
 % contains flexible rails and electrode holders; the PLA part provides support

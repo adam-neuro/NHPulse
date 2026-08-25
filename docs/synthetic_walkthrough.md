@@ -177,6 +177,15 @@ approximately even scalp coverage rather than stimulation targeting.
 Check: EEG sites should be distributed over the remaining legal scalp, with no
 obvious collisions or placements on excluded regions.
 
+### 11.5 - tES Stimulation Parameters
+
+Goal: display the final tES current recipe in a table that can be reviewed
+later from a clean workspace. The same utility can be called with no arguments
+for a file picker, or with a saved layout/manufacturing MAT file or tag.
+
+Check: selected tES channels should have balanced anodal and cathodal current,
+and the source electrode names should match the sparse optimization result.
+
 ### 12 - Dual-Material Manufacturing STL
 
 Goal: convert the layout into printable geometry: TPE/rubber rails and

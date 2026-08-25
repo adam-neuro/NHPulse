@@ -294,6 +294,10 @@ function out = acsBuildCapMakerManufacturingStl(layoutIn, varargin)
     out.qcFigure = qcFile;
     out.names = names;
     out.siteRoles = roleLabels;
+    tesInfo = selectedTesInfo(layout, names);
+    out.tesNames = tesInfo.tesNames;
+    out.sourceTesNames = tesInfo.sourceTesNames;
+    out.tesCurrentsMa = tesInfo.tesCurrentsMa;
     out.layoutCoordinatesMm = targetsMm;
     out.holderSurfaceCoordinatesMm = holderSurfacePointsFromInfo(holderInfo, targetsMm);
     out.holderInfo = holderInfo;
@@ -930,6 +934,38 @@ function [names, coords, roles] = selectedLayoutSites(layout, opts)
     roles = allRoles(rows);
 end
 
+function tesInfo = selectedTesInfo(layout, manufacturedNames)
+    tesInfo = struct('tesNames', {{}}, 'sourceTesNames', {{}}, ...
+        'tesCurrentsMa', []);
+    if ~isfield(layout, 'tesNames') || isempty(layout.tesNames) || ...
+            ~isfield(layout, 'tesCurrentsMa') || isempty(layout.tesCurrentsMa)
+        return;
+    end
+
+    allTesNames = toCellstrList(layout.tesNames);
+    currents = double(layout.tesCurrentsMa(:));
+    if isfield(layout, 'sourceTesNames') && ~isempty(layout.sourceTesNames)
+        sourceNames = toCellstrList(layout.sourceTesNames);
+    else
+        sourceNames = allTesNames;
+    end
+
+    n = min([numel(allTesNames), numel(sourceNames), numel(currents)]);
+    allTesNames = allTesNames(1:n);
+    sourceNames = sourceNames(1:n);
+    currents = currents(1:n);
+    manufacturedNames = toCellstrList(manufacturedNames);
+
+    keep = false(n, 1);
+    for i = 1:n
+        keep(i) = any(strcmpi(allTesNames{i}, manufacturedNames));
+    end
+
+    tesInfo.tesNames = allTesNames(keep);
+    tesInfo.sourceTesNames = sourceNames(keep);
+    tesInfo.tesCurrentsMa = currents(keep);
+end
+
 function opts = resolveOutputPaths(layout, skinSource, opts)
     if isempty(opts.manufacturingTag)
         if isfield(layout, 'reportMat') && ~isempty(layout.reportMat)
@@ -1122,6 +1158,10 @@ function out = makePreflightOutput(layout, TRskin, TRrailSkin, TRholders, TRrail
     out.qcFigure = qcFile;
     out.names = names;
     out.siteRoles = roleLabels;
+    tesInfo = selectedTesInfo(layout, names);
+    out.tesNames = tesInfo.tesNames;
+    out.sourceTesNames = tesInfo.sourceTesNames;
+    out.tesCurrentsMa = tesInfo.tesCurrentsMa;
     out.layoutCoordinatesMm = targetsMm;
     out.holderSurfaceCoordinatesMm = holderSurfacePointsFromInfo(holderInfo, targetsMm);
     out.holderInfo = holderInfo;

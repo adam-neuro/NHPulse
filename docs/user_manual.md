@@ -66,8 +66,9 @@ The high-level sequence remains:
 7. Optimize sparse tES montage.
 8. Grow candidates iteratively if needed.
 9. Add EEG electrodes over the remaining valid scalp.
-10. Inspect manufacturing geometry.
-11. Export fit-check or final cap STLs.
+10. Review the selected tES current recipe.
+11. Inspect manufacturing geometry.
+12. Export fit-check or final cap STLs.
 
 ## Interactive Steps
 
@@ -126,6 +127,12 @@ The public walkthrough supports two lead-field modes:
 
 Real experiments should use real ROAST/GetDP lead fields for final modeling and
 should treat dummy lead fields only as development plumbing.
+
+After a sparse solve, `acsShowTesStimulationParameters` can reload a saved
+sparse result, combined layout, or manufacturing report and display the tES
+currents to apply at each channel. When matching ROAST or EEG-prediction
+products exist, the same utility can replay the corresponding field and
+topography figures.
 
 ## Data Hygiene
 
