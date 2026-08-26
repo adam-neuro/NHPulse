@@ -468,6 +468,14 @@ function candidates = getdpExecutableCandidates(repoRoot)
         end
     end
     for j = 1:numel(names)
+        recursiveHits = dir(fullfile(repoRoot, 'lib', '**', names{j}));
+        recursiveHits = recursiveHits(~[recursiveHits.isdir]);
+        for i = 1:numel(recursiveHits)
+            candidates{end + 1} = fullfile( ...
+                recursiveHits(i).folder, recursiveHits(i).name); %#ok<AGROW>
+        end
+    end
+    for j = 1:numel(names)
         candidates{end + 1} = whichOnPath(names{j}); %#ok<AGROW>
     end
 end

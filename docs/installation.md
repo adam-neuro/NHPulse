@@ -93,7 +93,9 @@ Downloaded MATLAB dependencies on macOS may contain quarantined MEX files or
 non-executable helper binaries. After configuring paths, run:
 
 ```matlab
-nhpulseClearMacQuarantine({'spm', 'cvx', 'iso2mesh'})
+nhpulseClearMacQuarantine({'spm', 'cvx', 'iso2mesh', 'getdp'})
 ```
 
-You can also pass a folder path directly. Restart MATLAB afterward.
+You can also pass a folder path directly. Restart MATLAB afterward. GetDP is
+only needed for real ROAST finite-element solves, but it can be quarantined by
+macOS in the same way as MEX dependencies.

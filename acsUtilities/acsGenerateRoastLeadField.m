@@ -73,6 +73,9 @@ function out = acsGenerateRoastLeadField(roastSource, varargin)
 
     out = buildReport(t1File, opts, names, referenceElectrode, ...
         candidateLocationsSnapshot, electrodeOptions);
+    if opts.execute
+        assertNoDummyLeadFieldTagConflict(out);
+    end
     if opts.saveReport
         save(out.reportMat, 'out');
     end
@@ -354,6 +357,43 @@ function out = buildReport(t1File, opts, names, referenceElectrode, ...
     out.reportMat = fullfile(folder, ...
         [stem '_' opts.simulationTag '_acsLeadFieldRequest.mat']);
     out.validationRecipe = makeValidationRecipe(names, referenceElectrode);
+end
+
+function assertNoDummyLeadFieldTagConflict(out)
+    if exist(out.roastOptionsMat, 'file') ~= 2
+        return;
+    end
+    try
+        data = load(out.roastOptionsMat);
+    catch
+        return;
+    end
+    if ~isDummyLeadFieldCache(data)
+        return;
+    end
+
+    cachePrefix = strrep(out.roastOptionsMat, '_roastOptions.mat', '');
+    error('acsGenerateRoastLeadField:DummyCacheConflict', ...
+        ['A real ROAST lead-field solve was requested with tag "%s", ', ...
+         'but that tag already has NHPulse dummy lead-field cache files on disk.\n\n', ...
+         'This can happen after running the synthetic walkthrough in dummy ', ...
+         'mode and then reusing the same simulationTag for cfg.leadFieldMode=''roast''.\n\n', ...
+         'Use a new simulationTag/tag suffix, or delete the files beginning with:\n  %s\n', ...
+         'Then rerun the layout/lead-field cells.'], ...
+        out.simulationTag, cachePrefix);
+end
+
+function tf = isDummyLeadFieldCache(data)
+    tf = isfield(data, 'dummyLeadField');
+    if tf || ~isfield(data, 'opt') || ~isstruct(data.opt)
+        return;
+    end
+    opt = data.opt;
+    tf = (isfield(opt, 'dummy') && opt.dummy) || ...
+        (isfield(opt, 'nhpulseDummyLeadField') && opt.nhpulseDummyLeadField);
+    if ~tf && isfield(opt, 'leadField') && isstruct(opt.leadField)
+        tf = (isfield(opt.leadField, 'dummy') && opt.leadField.dummy);
+    end
 end
 
 function snapshot = snapshotCustomLocations(t1File, simulationTag, names)

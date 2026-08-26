@@ -362,10 +362,13 @@ function opt = makeDummyOptions(names, stimulusNames, referenceElectrode, opts, 
     leadField.customLocationsFile = candidateSnapshot;
 
     opt = struct();
+    opt.configTxt = 'nhpulseDummyLeadFieldGeneration';
+    opt.uniqueTag = opts.simulationTag;
     opt.resamp = false;
     opt.simulationTag = opts.simulationTag;
     opt.leadField = leadField;
     opt.dummy = true;
+    opt.nhpulseDummyLeadField = true;
     opt.dummyWarning = leadField.dummyWarning;
 end
 

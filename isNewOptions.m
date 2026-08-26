@@ -14,6 +14,47 @@ isNewOpt = 0;
 switch fun
     
     case 'roast'
+
+        if (isfield(optNew,'dummy') && optNew.dummy) || ...
+                (isfield(optOld,'dummy') && optOld.dummy)
+            isNewOpt = 1;
+            return
+        end
+
+        requiredFields = {'configTxt','elecPara','T2','multiaxial', ...
+            'Affine','meshOpt','conductivities','resamp','zeroPad'};
+        if ~all(isfield(optNew,requiredFields)) || ...
+                ~all(isfield(optOld,requiredFields))
+            isNewOpt = 1;
+            return
+        end
+
+        elecFields = {'capType','elecType','elecSize','elecOri'};
+        if ~isstruct(optNew.elecPara) || ~isstruct(optOld.elecPara) || ...
+                isempty(optNew.elecPara) || isempty(optOld.elecPara) || ...
+                ~all(isfield(optNew.elecPara,elecFields)) || ...
+                ~all(isfield(optOld.elecPara,elecFields))
+            isNewOpt = 1;
+            return
+        end
+
+        meshFields = {'radbound','angbound','distbound','reratio','maxvol'};
+        if ~isstruct(optNew.meshOpt) || ~isstruct(optOld.meshOpt) || ...
+                ~all(isfield(optNew.meshOpt,meshFields)) || ...
+                ~all(isfield(optOld.meshOpt,meshFields))
+            isNewOpt = 1;
+            return
+        end
+
+        conductivityFields = {'white','gray','csf','bone','skin','air', ...
+            'gel','electrode'};
+        if ~isstruct(optNew.conductivities) || ...
+                ~isstruct(optOld.conductivities) || ...
+                ~all(isfield(optNew.conductivities,conductivityFields)) || ...
+                ~all(isfield(optOld.conductivities,conductivityFields))
+            isNewOpt = 1;
+            return
+        end
         
         if ~strcmp(optNew.configTxt,optOld.configTxt)
             isNewOpt = 1;

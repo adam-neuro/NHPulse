@@ -173,6 +173,13 @@ function candidates = bundledExecutableCandidates(repoRoot, prefix)
             candidates{end + 1} = fullfile(base, names{j}); %#ok<AGROW>
         end
     end
+    for j = 1:numel(names)
+        hits = dir(fullfile(repoRoot, 'lib', '**', names{j}));
+        hits = hits(~[hits.isdir]);
+        for i = 1:numel(hits)
+            candidates{end + 1} = fullfile(hits(i).folder, hits(i).name); %#ok<AGROW>
+        end
+    end
 end
 
 function names = executableNames(prefix)

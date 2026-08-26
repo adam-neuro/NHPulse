@@ -176,10 +176,16 @@ function pathToClear = resolveTargetPath(target, P)
                 executableParent(getField(P, 'getdpExecutable')), ...
                 fullfile(getField(P, 'repoRoot'), 'lib', 'getdp-3.2.0', 'bin'), ...
                 fullfile(getField(P, 'repoRoot'), 'lib', 'getdp')});
+            if isempty(pathToClear)
+                pathToClear = findBundledExecutableRoot(P, 'getdp');
+            end
         case {'gmsh'}
             pathToClear = firstExisting({ ...
                 executableParent(getField(P, 'gmshExecutable')), ...
                 fullfile(getField(P, 'repoRoot'), 'lib', 'gmsh')});
+            if isempty(pathToClear)
+                pathToClear = findBundledExecutableRoot(P, 'gmsh');
+            end
         otherwise
             pathToClear = expandUserPath(target);
     end
@@ -213,6 +219,71 @@ function folder = executableParent(fileName)
         folder = fileName;
     else
         folder = fileparts(fileName);
+    end
+end
+
+function root = findBundledExecutableRoot(P, baseName)
+    root = '';
+    repoRoot = getField(P, 'repoRoot');
+    if isempty(repoRoot)
+        return;
+    end
+    libRoot = fullfile(repoRoot, 'lib');
+    if exist(libRoot, 'dir') ~= 7
+        return;
+    end
+
+    executableNames = platformExecutableNames(baseName);
+    candidates = {};
+    for i = 1:numel(executableNames)
+        candidates = [candidates; recursiveMatches(libRoot, executableNames{i})]; %#ok<AGROW>
+    end
+    if strcmpi(baseName, 'getdp')
+        candidates = [candidates; recursiveMatches(libRoot, 'getdp*')]; %#ok<AGROW>
+    elseif strcmpi(baseName, 'gmsh')
+        candidates = [candidates; recursiveMatches(libRoot, 'gmsh*')]; %#ok<AGROW>
+        candidates = [candidates; recursiveMatches(libRoot, 'Gmsh.app')]; %#ok<AGROW>
+    end
+    candidates = candidates(~cellfun(@isempty, candidates));
+    if isempty(candidates)
+        return;
+    end
+
+    for i = 1:numel(candidates)
+        candidate = candidates{i};
+        [folder, fileStem, ext] = fileparts(candidate);
+        if strcmpi([fileStem ext], 'Gmsh.app')
+            root = candidate;
+            return;
+        end
+        if isExistingFile(candidate)
+            root = folder;
+            return;
+        end
+    end
+end
+
+function matches = recursiveMatches(rootFolder, pattern)
+    matches = {};
+    hits = dir(fullfile(rootFolder, '**', pattern));
+    hits = hits(~ismember({hits.name}, {'.', '..'}));
+    for i = 1:numel(hits)
+        matches{end + 1, 1} = fullfile(hits(i).folder, hits(i).name); %#ok<AGROW>
+    end
+end
+
+function names = platformExecutableNames(baseName)
+    switch computer('arch')
+        case 'win64'
+            names = {[baseName '.exe'], baseName};
+        case {'maci64', 'maca64'}
+            if strcmpi(baseName, 'getdp')
+                names = {baseName, 'getdpMac'};
+            else
+                names = {baseName};
+            end
+        otherwise
+            names = {baseName, [baseName '.exe']};
     end
 end
 

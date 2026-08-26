@@ -75,15 +75,29 @@ report.spm
 ## macOS Blocks MEX Files
 
 Symptoms include "Invalid MEX-file", "developer cannot be verified", "library
-load disallowed by system policy", or `Permission denied` from `cgalmesh`.
+load disallowed by system policy", or `Permission denied` from `cgalmesh` or
+GetDP.
 
 After configuring dependency paths:
 
 ```matlab
-nhpulseClearMacQuarantine({'spm', 'cvx', 'iso2mesh'})
+nhpulseClearMacQuarantine({'spm', 'cvx', 'iso2mesh', 'getdp'})
 ```
 
 Restart MATLAB. For CVX, rerun `cvx_setup`.
+
+If `nhpulseClearMacQuarantine('getdp')` says the GetDP path is not found or
+not configured, rerun local path setup after installing GetDP:
+
+```matlab
+P = nhpulseConfigureLocalPaths('profile', 'syntheticMwe', 'useGui', true);
+```
+
+or pass the folder/executable directly, for example:
+
+```matlab
+nhpulseClearMacQuarantine('/Users/you/Documents/MATLAB/NHPulse/lib/getdp-3.2.0')
+```
 
 ## Gmsh App Bundle On macOS
 

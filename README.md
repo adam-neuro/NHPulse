@@ -40,12 +40,14 @@ On macOS, freshly downloaded MATLAB dependencies may have quarantined MEX files.
 After configuring paths, clear the quarantine attribute and restart MATLAB:
 
 ```matlab
-nhpulseClearMacQuarantine({'spm', 'cvx', 'iso2mesh'})
+nhpulseClearMacQuarantine({'spm', 'cvx', 'iso2mesh', 'getdp'})
 ```
 
 If you are only fixing SPM, `nhpulseClearMacQuarantine('spm')` is enough. You
 can also pass a direct folder path such as
 `nhpulseClearMacQuarantine('/Users/you/Documents/MATLAB/NHPulse/lib/spm12-main')`.
+For real ROAST/GetDP solves, also clear the folder containing the GetDP
+executable if macOS reports that it cannot be verified.
 
 After the dependency report says the synthetic smoke test is likely runnable,
 run:

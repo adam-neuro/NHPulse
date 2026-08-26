@@ -165,14 +165,14 @@ message, the downloaded dependency folder may have a Gatekeeper quarantine
 attribute or a missing executable bit. This can affect CVX, SPM, iso2mesh, or
 other dependencies that contain MEX binaries and helper executables.
 
-After setting `spmPath` and/or `cvxPath` with `nhpulseConfigureLocalPaths`, run
-one of:
+After setting dependency paths with `nhpulseConfigureLocalPaths`, run one of:
 
 ```matlab
 nhpulseClearMacQuarantine('spm')
 nhpulseClearMacQuarantine('cvx')
 nhpulseClearMacQuarantine('iso2mesh')
-nhpulseClearMacQuarantine({'spm', 'cvx', 'iso2mesh'})
+nhpulseClearMacQuarantine('getdp')
+nhpulseClearMacQuarantine({'spm', 'cvx', 'iso2mesh', 'getdp'})
 ```
 
 The helper runs the equivalent of `xattr -rc` on the configured folder and also
@@ -189,6 +189,7 @@ The same operation can be run from Terminal:
 xattr -rc /path/to/spm
 xattr -rc /path/to/cvx
 xattr -rc /path/to/iso2mesh
+xattr -rc /path/to/getdp
 find /path/to/iso2mesh -type f \( -name '*.mex*' -o -name 'cgalmesh*' -o -name 'tetgen*' \) -exec chmod u+x {} +
 ```
 
