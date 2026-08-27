@@ -120,6 +120,25 @@ P = nhpulseConfigureLocalPaths('profile', 'syntheticMwe', 'useGui', true);
 report = nhpulseCheckDependencies();
 ```
 
+## TAZ Pro Startup Wipe Or Bed-Leveling Problems
+
+If a LulzBot TAZ Pro dual-extrusion print starts with the nozzle too high or
+too low during wiping or bed leveling, first check physical setup: both nozzles
+should be clean, both extruders should be primed, and the printer should be
+auto-homed before the job.
+
+For one tested TAZ Pro setup, NHPulse includes an optional Cura-style G-code
+patcher that re-homes before the first `G12` wipe command and waits for the TPE
+extruder before its first extrusion:
+
+```bash
+python printing/tazpro_dual/patch_tazpro_dual.py path/to/your_file.gcode
+```
+
+This writes `*_patched.gcode` next to the input file. Keep the original G-code
+and inspect the patched file before printing. See
+[3D Printing And Fabrication](fabrication.md) for the full slicing checklist.
+
 ## ROAST Custom Segmentation Or capInfo Errors
 
 The synthetic walkthrough supplies a custom hard-label mask so ROAST can skip

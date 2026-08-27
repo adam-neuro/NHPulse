@@ -636,6 +636,7 @@ walkthroughVerification = nhpulseVerifySyntheticWalkthrough(cfg.outputDir, ...
     'requireRealLeadField', useRealLeadFields(cfg), ...
     'verbose', true);
 
+%% subroutines
 function opts = baseCapTargetOptions(cfg)
     if nargin < 1
         cfg = struct();

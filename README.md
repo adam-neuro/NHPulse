@@ -90,6 +90,8 @@ verification = nhpulseVerifySyntheticWalkthrough();
   ROAST, GetDP, and output-path failures.
 - [User Manual](docs/user_manual.md): conceptual workflow and where the major
   functions fit.
+- [3D Printing And Fabrication](docs/fabrication.md): tested PLA/TPE printing
+  setup, Cura slicing steps, and optional TAZ Pro G-code patching.
 - [Configuration](docs/configuration.md): `local.paths.json` and
   `nhpulseExampleConfig` presets.
 - [Validation](docs/validation.md): smoke tests, verification, and manual test

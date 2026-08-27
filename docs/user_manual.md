@@ -118,6 +118,15 @@ often faster and safer than jumping directly to a full dual-material print. The
 fit-check scaffold exercises the same crop/exclusion geometry while avoiding
 the longer PLA/TPE manufacturing path.
 
+## Final Fabrication
+
+The final manufacturing step exports coordinated TPE and PLA STL files. Slice
+them as one merged dual-extrusion model so the flexible cap and rigid support
+remain aligned. The tested development setup used a LulzBot TAZ Pro with PLA in
+extruder 1 and NinjaTek Chinchilla TPE in extruder 2. See
+[3D Printing And Fabrication](fabrication.md) for slicing, print-preparation,
+support-removal, and optional G-code patching notes.
+
 ## Lead-Field Modes
 
 The public walkthrough supports two lead-field modes:
