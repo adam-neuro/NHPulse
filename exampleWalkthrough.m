@@ -339,7 +339,9 @@ fprintf('Demo target voxel: [%g %g %g]\n', targetVoxel);
 % Objective: place an initial set of legal candidate tES contacts on scalp that
 % survived the crop, ear/face exclusions, strap constraints, and implant
 % keepouts. These candidates are possible model/electrode locations, not
-% necessarily the final active montage.
+% necessarily the final active montage.  We can use the leadfield solutions
+% from these initial locations to make predictions about the leadfields
+% from unobserved locations in the next step (layout candidate growth).
 %
 % These are candidate tES contacts, not the final active montage. The layout
 % uses the ear, strap, and headpost keepouts defined above.
@@ -495,7 +497,10 @@ fprintf('Selected tES contacts: %s\n', ...
 %
 % This section is intentionally skipped in dummy mode. When cfg.leadFieldMode
 % is 'roast', it reconstructs the optimized field from the solved leadfield
-% and displays target-centered surface/slice QC.
+% and displays target-centered surface/slice QC. Note that if using the
+% synthetic "head" and low channel counts/iterations, the targeting should
+% not be expected to be highly focal nor accurate; this is just to
+% illustrate the pipeline and make sure everything runs without errors.
 
 if useRealLeadFields(cfg)
     finalFieldQc = acsVisualizeSparseRoastLeadField(finalSparse, ...

@@ -51,6 +51,8 @@ function out = acsBuildCapMakerManufacturingStl(layoutIn, varargin)
 %   strapCorrFitIntegerCycles : adjust pitch to whole cycles per section [true]
 %   strapRostralOffsetMm  : offset rostral to ear sphere edge [0]
 %   strapAnchorZBandMm    : prefer rail vertices near bed within this band [8]
+%   strapRampAutoRise     : increase ramp rise to reach rail anchors [true]
+%   strapRampAttachOverlapMm : extra vertical overlap at rail anchor [1]
 %   holderSupportMode     : 'nearestRail' or 'none' ['nearestRail']
 %   holderSupportCount    : support struts per holder [2]
 %   holderSupportMinAngleDeg : desired support angle spread [90]
@@ -408,6 +410,8 @@ function opts = parseInputs(varargin)
     addParameter(p, 'strapCorrFitIntegerCycles', true, @isBoolLike);
     addParameter(p, 'strapRostralOffsetMm', 0, @isNonnegativeScalar);
     addParameter(p, 'strapAnchorZBandMm', 8, @isPositiveScalar);
+    addParameter(p, 'strapRampAutoRise', true, @isBoolLike);
+    addParameter(p, 'strapRampAttachOverlapMm', 1, @isNonnegativeScalar);
     addParameter(p, 'holderSupportMode', 'nearestRail', @(x) ischar(x) || isstring(x));
     addParameter(p, 'holderSupportCount', 2, ...
         @(x) isnumeric(x) && isscalar(x) && isfinite(x) && x >= 0);
@@ -543,6 +547,8 @@ function opts = parseInputs(varargin)
     opts.strapCorrFitIntegerCycles = logical(opts.strapCorrFitIntegerCycles);
     opts.strapRostralOffsetMm = double(opts.strapRostralOffsetMm);
     opts.strapAnchorZBandMm = double(opts.strapAnchorZBandMm);
+    opts.strapRampAutoRise = logical(opts.strapRampAutoRise);
+    opts.strapRampAttachOverlapMm = double(opts.strapRampAttachOverlapMm);
     opts.holderSupportMode = normalizeHolderSupportMode(opts.holderSupportMode);
     opts.holderSupportCount = round(double(opts.holderSupportCount));
     opts.holderSupportMinAngleDeg = double(opts.holderSupportMinAngleDeg);
@@ -2260,15 +2266,6 @@ function strap = makeStrapOccupancy(TRrails, TRskin, TRholders, earExclusions, o
     common = defaultStrapCommon(opts);
     strapParams = mergeStructs(strapParamsFromCommon(common), opts.strapOptions);
     frameOpts = mergeStructs(strapFrameOptionsFromCommon(common), opts.strapFrameOptions);
-    strap.params = strapParams;
-    strap.frameOptions = frameOpts;
-    logMsg(opts, ...
-        '  strap parameters: style=%s, amp=%.3g mm, pitch=%.3g mm, width=%.3g mm, thickness=%.3g mm', ...
-        char(getStructField(strapParams, 'style', opts.strapCorrStyle)), ...
-        double(getStructField(strapParams, 'ampMM', opts.strapCorrAmpMm)), ...
-        double(getStructField(strapParams, 'pitchMM', opts.strapCorrPitchMm)), ...
-        double(getStructField(strapParams, 'widthMM', 10)), ...
-        double(getStructField(strapParams, 'thickMM', 2.4)));
 
     switch opts.strapMode
         case 'earRostral'
@@ -2287,6 +2284,18 @@ function strap = makeStrapOccupancy(TRrails, TRskin, TRholders, earExclusions, o
         return;
     end
 
+    strapParams = maybeAutoRaiseStrapRamp(strapParams, anchors, opts);
+    strap.params = strapParams;
+    strap.frameOptions = frameOpts;
+    logMsg(opts, ...
+        '  strap parameters: style=%s, amp=%.3g mm, pitch=%.3g mm, width=%.3g mm, thickness=%.3g mm, rampRise=%.3g mm', ...
+        char(getStructField(strapParams, 'style', opts.strapCorrStyle)), ...
+        double(getStructField(strapParams, 'ampMM', opts.strapCorrAmpMm)), ...
+        double(getStructField(strapParams, 'pitchMM', opts.strapCorrPitchMm)), ...
+        double(getStructField(strapParams, 'widthMM', 10)), ...
+        double(getStructField(strapParams, 'thickMM', 2.4)), ...
+        double(getStructField(strapParams, 'rampRiseMM', 0)));
+
     strap.anchorSource = source;
     strap.anchors = anchors;
     strap.outDirs = outDirs;
@@ -2299,6 +2308,22 @@ function strap = makeStrapOccupancy(TRrails, TRskin, TRholders, earExclusions, o
             X, Y, Z, anchor, outDir, paramsI, frameI); %#ok<AGROW>
         strap.extraPoints = [strap.extraPoints; ...
             strapExtentPoints(anchor, outDir, paramsI, frameI)]; %#ok<AGROW>
+    end
+end
+
+function strapParams = maybeAutoRaiseStrapRamp(strapParams, anchors, opts)
+    if ~opts.strapRampAutoRise || isempty(anchors)
+        return;
+    end
+    T = double(getStructField(strapParams, 'thickMM', 2.4));
+    bedClearance = max(0, double(getStructField(strapParams, ...
+        'bedClearanceMM', opts.strapBedClearanceMm)));
+    zLow = opts.zBedMm + T / 2 + bedClearance;
+    requestedRise = max(0, max(double(anchors(:, 3))) - zLow + ...
+        opts.strapRampAttachOverlapMm);
+    currentRise = double(getStructField(strapParams, 'rampRiseMM', 0));
+    if requestedRise > currentRise
+        strapParams.rampRiseMM = requestedRise;
     end
 end
 
@@ -2408,7 +2433,6 @@ function anchor = nearestRailAnchor(TRrails, target, sideSign, opts)
     d2 = sum((V(rows, 1:2) - target(1:2)) .^ 2, 2);
     [~, localIdx] = min(d2);
     anchor = V(rows(localIdx), :);
-    anchor(3) = opts.zBedMm;
 end
 
 function [anchors, outDirs, source] = bboxLateralAnchors(TRrails, opts)
@@ -2427,7 +2451,6 @@ function [anchors, outDirs, source] = bboxLateralAnchors(TRrails, opts)
     [~, leftLocal] = min(V(rows, 1));
     [~, rightLocal] = max(V(rows, 1));
     anchors = [V(rows(leftLocal), :); V(rows(rightLocal), :)];
-    anchors(:, 3) = opts.zBedMm;
     outDirs = [-1 0 0; 1 0 0];
     source = 'bboxLateral';
 end
