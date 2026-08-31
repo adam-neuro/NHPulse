@@ -143,6 +143,27 @@ currents to apply at each channel. When matching ROAST or EEG-prediction
 products exist, the same utility can replay the corresponding field and
 topography figures.
 
+## FieldTrip EEG Topography Layouts
+
+For preliminary EEG analysis in FieldTrip, use `acsMakeFieldTripLayout` to
+convert a finalized NHPulse/capMaker layout into FieldTrip's 2-D layout
+structure:
+
+```matlab
+ftLayout = acsMakeFieldTripLayout('your_cap_design_tag');
+
+cfg = [];
+cfg.layout = ftLayout.layout;
+ft_topoplotER(cfg, timelock);
+```
+
+By default the adapter keeps EEG channels when they can be identified and
+renames labels such as `customEEG1` to `EEG1`. Use
+`'labelMode','raw'` if your FieldTrip data still uses the original NHPulse
+channel names. Prefer a saved `*_report.mat` layout product or cap-design tag
+over a raw ROAST `customLocations` text file because the MAT report preserves
+the capMaker print-frame coordinates and EEG/tES roles.
+
 ## Data Hygiene
 
 Do not commit real MRI data, phone/LiDAR scans, animal photographs, lead-field
