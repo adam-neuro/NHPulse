@@ -187,6 +187,7 @@ function data = emptyData()
     data.earExclusions = struct();
     data.implantExclusions = struct([]);
     data.strap = struct();
+    data.velcroAnchors = struct();
     data.options = struct();
 end
 
@@ -235,6 +236,9 @@ function data = absorbReport(data, report)
     end
     if isfield(report, 'strap') && isstruct(report.strap)
         data.strap = report.strap;
+    end
+    if isfield(report, 'velcroAnchors') && isstruct(report.velcroAnchors)
+        data.velcroAnchors = report.velcroAnchors;
     end
     if isfield(report, 'options') && isstruct(report.options)
         data.options = report.options;
@@ -576,6 +580,7 @@ function fig = makeFigure(data, diagnostics, opts, visible)
     overlays.ears = drawEarExclusions(ax, data.earExclusions, opts);
     overlays.implants = drawImplantExclusions(ax, data.implantExclusions, opts);
     overlays.strap = drawStrapContext(ax, data.strap, opts);
+    overlays.velcro = drawVelcroAnchorContext(ax, data.velcroAnchors, opts);
 
     drawHolderVectors(ax, diagnostics, opts);
     drawHolderCenters(ax, diagnostics);
@@ -606,6 +611,8 @@ function fig = makeFigure(data, diagnostics, opts, visible)
         opts.showExclusions, overlays, 'implants');
     addVisibilityCheckbox(fig, 0.86, 0.32, 'strap anchors', ...
         opts.showExclusions, overlays, 'strap');
+    addVisibilityCheckbox(fig, 0.86, 0.28, 'velcro loops', ...
+        opts.showExclusions, overlays, 'velcro');
     addInfoText(fig, diagnostics);
 end
 
@@ -758,6 +765,166 @@ function group = drawStrapContext(ax, strap, opts)
             15 * D(:, 1), 15 * D(:, 2), 15 * D(:, 3), ...
             0, 'Color', 'm', 'LineWidth', 2);
         parentToGroup(h, group);
+    end
+end
+
+function group = drawVelcroAnchorContext(ax, velcroAnchors, opts)
+    group = hggroup('Parent', ax, 'Visible', onOff(opts.showExclusions));
+    if isempty(velcroAnchors) || ~isstruct(velcroAnchors)
+        return;
+    end
+    if isfield(velcroAnchors, 'anchorsMm')
+        Araw = double(velcroAnchors.anchorsMm);
+    elseif isfield(velcroAnchors, 'anchors')
+        Araw = double(velcroAnchors.anchors);
+    else
+        return;
+    end
+    if isempty(Araw) || size(Araw, 2) ~= 3
+        return;
+    end
+    keep = all(isfinite(Araw), 2);
+    A = Araw(keep, :);
+    if isempty(A)
+        return;
+    end
+    if isfield(velcroAnchors, 'outDirs') && ...
+            size(velcroAnchors.outDirs, 1) == size(Araw, 1)
+        D = double(velcroAnchors.outDirs(keep, :));
+    elseif isfield(velcroAnchors, 'outDirs') && ...
+            size(velcroAnchors.outDirs, 1) >= size(A, 1)
+        D = double(velcroAnchors.outDirs(1:size(A, 1), :));
+    else
+        D = repmat([1 0 0], size(A, 1), 1);
+    end
+    if isfield(velcroAnchors, 'normals') && ...
+            size(velcroAnchors.normals, 1) == size(Araw, 1)
+        N = double(velcroAnchors.normals(keep, :));
+    elseif isfield(velcroAnchors, 'normals') && ...
+            size(velcroAnchors.normals, 1) >= size(A, 1)
+        N = double(velcroAnchors.normals(1:size(A, 1), :));
+    else
+        N = repmat([0 0 1], size(A, 1), 1);
+    end
+    if isfield(velcroAnchors, 'geometry') && isstruct(velcroAnchors.geometry)
+        geom = velcroAnchors.geometry;
+    elseif isfield(velcroAnchors, 'params') && isstruct(velcroAnchors.params)
+        geom = velcroAnchors.params;
+    else
+        geom = defaultVelcroGeometry();
+    end
+    names = defaultVelcroAnchorNames(size(A, 1));
+    if isfield(velcroAnchors, 'names') && numel(velcroAnchors.names) >= numel(keep)
+        names = cellstr(velcroAnchors.names(:));
+        names = names(1:numel(keep));
+        names = names(keep);
+    end
+
+    colorOuter = [0.00 0.60 0.65];
+    colorInner = [0.00 0.30 0.38];
+    h = scatter3(ax, A(:, 1), A(:, 2), A(:, 3), 74, colorOuter, ...
+        'filled', 'MarkerEdgeColor', [0.05 0.05 0.05], 'LineWidth', 0.8);
+    parentToGroup(h, group);
+    for i = 1:size(A, 1)
+        [outer, inner, attach] = velcroAnchorOutline(A(i, :), D(i, :), ...
+            N(i, :), geom);
+        h = plot3(ax, outer(:, 1), outer(:, 2), outer(:, 3), ...
+            'Color', colorOuter, 'LineWidth', 2.0);
+        parentToGroup(h, group);
+        h = plot3(ax, inner(:, 1), inner(:, 2), inner(:, 3), ...
+            'Color', colorInner, 'LineWidth', 1.4);
+        parentToGroup(h, group);
+        if ~isempty(attach)
+            h = plot3(ax, attach(:, 1), attach(:, 2), attach(:, 3), ...
+                'Color', colorOuter, 'LineStyle', '--', 'LineWidth', 1.2);
+            parentToGroup(h, group);
+        end
+        h = quiver3(ax, A(i, 1), A(i, 2), A(i, 3), ...
+            12 * D(i, 1), 12 * D(i, 2), 12 * D(i, 3), ...
+            0, 'Color', colorOuter, 'LineWidth', 1.6);
+        parentToGroup(h, group);
+        h = text(ax, A(i, 1), A(i, 2), A(i, 3), [' ' names{i}], ...
+            'Color', colorInner, 'FontSize', 8, ...
+            'FontWeight', 'bold', 'Interpreter', 'none');
+        parentToGroup(h, group);
+    end
+end
+
+function geom = defaultVelcroGeometry()
+    geom = struct('outerLengthMm', 20, 'outerWidthMm', 13, ...
+        'frameWidthMm', 4, 'thicknessMm', 3.5, ...
+        'outboardOffsetMm', 5, 'attachLengthMm', 9, ...
+        'attachWidthMm', 13, 'floorAtBed', true);
+end
+
+function names = defaultVelcroAnchorNames(n)
+    base = {'leftCaudolateral', 'leftPreauricular', 'leftRostrolateral', ...
+        'rightCaudolateral', 'rightPreauricular', 'rightRostrolateral'};
+    if n <= numel(base)
+        names = base(1:n).';
+    else
+        names = arrayfun(@(i) sprintf('velcroAnchor%d', i), ...
+            (1:n).', 'UniformOutput', false);
+    end
+end
+
+function [outer, inner, attach] = velcroAnchorOutline(anchor, outDir, normal, geom)
+    [center, uHat, vHat, nHat] = velcroAnchorFrame(anchor, outDir, normal, geom);
+    theta = linspace(0, 2*pi, 97).';
+    outer = center + ...
+        (geom.outerLengthMm / 2 * cos(theta)) * uHat + ...
+        (geom.outerWidthMm / 2 * sin(theta)) * vHat + ...
+        (0.55 * geom.thicknessMm) * nHat;
+    innerLength = geom.outerLengthMm - 2 * geom.frameWidthMm;
+    innerWidth = geom.outerWidthMm - 2 * geom.frameWidthMm;
+    inner = center + ...
+        (innerLength / 2 * cos(theta)) * uHat + ...
+        (innerWidth / 2 * sin(theta)) * vHat + ...
+        (0.58 * geom.thicknessMm) * nHat;
+    attach = zeros(0, 3);
+    if geom.attachLengthMm > 0
+        u0 = -geom.attachWidthMm / 2;
+        u1 = geom.attachWidthMm / 2;
+        v0 = -geom.outerWidthMm / 2 - geom.attachLengthMm;
+        v1 = -geom.outerWidthMm / 2 + geom.frameWidthMm;
+        UV = [u0 v0; u1 v0; u1 v1; u0 v1; u0 v0];
+        attach = center + UV(:, 1) * uHat + UV(:, 2) * vHat + ...
+            (0.6 * geom.thicknessMm) * nHat;
+    end
+end
+
+function [center, uHat, vHat, nHat] = velcroAnchorFrame(anchor, outDir, normal, geom)
+    nHat = normalizeRow(normal);
+    if norm(nHat) <= eps
+        nHat = [0 0 1];
+    end
+    vHat = normalizeRow(outDir - dot(outDir, nHat) * nHat);
+    if norm(vHat) <= eps
+        [~, vHat] = localTransverseBasis(nHat);
+    end
+    uHat = normalizeRow(cross(nHat, vHat));
+    if norm(uHat) <= eps
+        [uHat, vHat] = localTransverseBasis(nHat);
+    end
+    center = anchor + geom.outboardOffsetMm * vHat;
+end
+
+function [u, v] = localTransverseBasis(n)
+    n = normalizeRow(n);
+    if abs(dot(n, [0 0 1])) < 0.9
+        u = cross(n, [0 0 1]);
+    else
+        u = cross(n, [0 1 0]);
+    end
+    u = normalizeRow(u);
+    v = normalizeRow(cross(n, u));
+end
+
+function row = normalizeRow(row)
+    row = double(row(:).');
+    n = norm(row);
+    if n > eps
+        row = row ./ n;
     end
 end
 

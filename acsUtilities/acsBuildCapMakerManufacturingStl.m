@@ -53,6 +53,15 @@ function out = acsBuildCapMakerManufacturingStl(layoutIn, varargin)
 %   strapAnchorZBandMm    : prefer rail vertices near bed within this band [8]
 %   strapRampAutoRise     : increase ramp rise to reach rail anchors [true]
 %   strapRampAttachOverlapMm : extra vertical overlap at rail anchor [1]
+%   velcroAnchorMode    : 'none', 'sixPoint', or 'file' ['none']
+%   velcroAnchorFile    : saved velcro anchor plan from acsPlanVelcroAnchors ['']
+%   velcroLoopOuterLengthMm : oval loop length along the midline direction [20]
+%   velcroLoopOuterWidthMm  : oval loop width along the medial-lateral direction [13]
+%   velcroLoopFrameWidthMm  : material width around velcro slot [4]
+%   velcroLoopThicknessMm   : loop thickness normal to local scalp [[] = max(railHeight,3)]
+%   velcroLoopOutboardOffsetMm : shift loop center outside cap edge [5]
+%   velcroLoopAttachLengthMm : inboard fusion pad length [9]
+%   velcroLoopAttachWidthMm  : inboard fusion pad width [[] = outer width]
 %   holderSupportMode     : 'nearestRail' or 'none' ['nearestRail']
 %   holderSupportCount    : support struts per holder [2]
 %   holderSupportMinAngleDeg : desired support angle spread [90]
@@ -165,10 +174,13 @@ function out = acsBuildCapMakerManufacturingStl(layoutIn, varargin)
     logElapsed(opts, 'Built edge rails', stageTimer);
 
     stageTimer = tic;
-    logMsg(opts, 'Preparing strap occupancy and anchor heuristics.');
+    logMsg(opts, 'Preparing strap and velcro-anchor occupancy.');
     strap = makeStrapOccupancy(TRrailsBase, TRskin, TRholders, earExclusions, opts);
-    checkHoldersAgainstStrapOccupancy(holderInfo, names, strap, opts);
-    logElapsed(opts, 'Built strap occupancy functions', stageTimer);
+    velcroAnchors = makeVelcroAnchorOccupancy(TRskin, TRrailsBase, ...
+        earExclusions, opts);
+    extraOccupancy = combineExtraOccupancy(strap, velcroAnchors);
+    checkHoldersAgainstStrapOccupancy(holderInfo, names, extraOccupancy, opts);
+    logElapsed(opts, 'Built strap/velcro occupancy functions', stageTimer);
 
     stageTimer = tic;
     logMsg(opts, 'Adding holder support rails.');
@@ -180,18 +192,19 @@ function out = acsBuildCapMakerManufacturingStl(layoutIn, varargin)
     if opts.preflightOnly
         out = makePreflightOutput(layout, TRskin, TRrailSkin, TRholders, TRrails, ...
             targetsMm, names, roleLabels, earExclusions, implantExclusions, ...
-            strap, TRholderSupports, holderInfo, manufacturingSurfaceInfo, ...
-            railBuildInfo, opts, totalTimer);
+            strap, velcroAnchors, TRholderSupports, holderInfo, ...
+            manufacturingSurfaceInfo, railBuildInfo, opts, totalTimer);
         return;
     end
 
+    extraOccupancy = combineExtraOccupancy(strap, velcroAnchors);
     fuseOpts = struct( ...
         'voxelSize', opts.voxelSizeMm, ...
         'padVox', opts.padVox, ...
         'zBed', opts.zBedMm, ...
         'tol', opts.inpolyhedronTol, ...
-        'extraOccFns', {strap.occFns}, ...
-        'extraPoints', strap.extraPoints, ...
+        'extraOccFns', {extraOccupancy.occFns}, ...
+        'extraPoints', extraOccupancy.extraPoints, ...
         'protectExtraOccFns', true, ...
         'closeVox', opts.fuseCloseVox, ...
         'manifoldize', opts.manifoldize, ...
@@ -274,7 +287,7 @@ function out = acsBuildCapMakerManufacturingStl(layoutIn, varargin)
         logMsg(opts, 'Building manufacturing QC figure.');
         fig = makeQcFigure(TRskin, TRholders, TRrails, TRtpeFinal, TRplaFinal, ...
             targetsMm, names, roleLabels, earExclusions, implantExclusions, ...
-            strap, holderInfo, opts, figVisible);
+            strap, velcroAnchors, holderInfo, opts, figVisible);
         if opts.saveFigures
             qcFile = fullfile(opts.outputDir, [opts.manufacturingTag '_qc.png']);
             saveQcFigure(fig, qcFile);
@@ -308,6 +321,7 @@ function out = acsBuildCapMakerManufacturingStl(layoutIn, varargin)
     out.earExclusions = compactEarExclusions(earExclusions);
     out.implantExclusions = compactImplantExclusions(implantExclusions);
     out.strap = stripStrapFns(strap);
+    out.velcroAnchors = stripOccFns(velcroAnchors);
     out.holderSupports = meshStats(TRholderSupports);
     out.railBuildInfo = railBuildInfo;
     out.options = opts;
@@ -412,6 +426,17 @@ function opts = parseInputs(varargin)
     addParameter(p, 'strapAnchorZBandMm', 8, @isPositiveScalar);
     addParameter(p, 'strapRampAutoRise', true, @isBoolLike);
     addParameter(p, 'strapRampAttachOverlapMm', 1, @isNonnegativeScalar);
+    addParameter(p, 'velcroAnchorMode', 'none', @(x) ischar(x) || isstring(x));
+    addParameter(p, 'velcroAnchorFile', '', @(x) ischar(x) || isstring(x));
+    addParameter(p, 'velcroAnchorOptions', struct(), @(x) isempty(x) || isstruct(x));
+    addParameter(p, 'velcroLoopOuterLengthMm', 20, @isPositiveScalar);
+    addParameter(p, 'velcroLoopOuterWidthMm', 13, @isPositiveScalar);
+    addParameter(p, 'velcroLoopFrameWidthMm', 4, @isPositiveScalar);
+    addParameter(p, 'velcroLoopThicknessMm', [], @(x) isempty(x) || isPositiveScalar(x));
+    addParameter(p, 'velcroLoopOutboardOffsetMm', 5, @isNonnegativeScalar);
+    addParameter(p, 'velcroLoopAttachLengthMm', 9, @isNonnegativeScalar);
+    addParameter(p, 'velcroLoopAttachWidthMm', [], @(x) isempty(x) || isPositiveScalar(x));
+    addParameter(p, 'velcroLoopFloorAtBed', true, @isBoolLike);
     addParameter(p, 'holderSupportMode', 'nearestRail', @(x) ischar(x) || isstring(x));
     addParameter(p, 'holderSupportCount', 2, ...
         @(x) isnumeric(x) && isscalar(x) && isfinite(x) && x >= 0);
@@ -549,6 +574,28 @@ function opts = parseInputs(varargin)
     opts.strapAnchorZBandMm = double(opts.strapAnchorZBandMm);
     opts.strapRampAutoRise = logical(opts.strapRampAutoRise);
     opts.strapRampAttachOverlapMm = double(opts.strapRampAttachOverlapMm);
+    opts.velcroAnchorMode = normalizeVelcroAnchorMode(opts.velcroAnchorMode);
+    opts.velcroAnchorFile = expandUserPath(char(opts.velcroAnchorFile));
+    if strcmp(opts.velcroAnchorMode, 'none') && ~isempty(opts.velcroAnchorFile)
+        opts.velcroAnchorMode = 'file';
+    end
+    if isempty(opts.velcroAnchorOptions), opts.velcroAnchorOptions = struct(); end
+    opts.velcroLoopOuterLengthMm = double(opts.velcroLoopOuterLengthMm);
+    opts.velcroLoopOuterWidthMm = double(opts.velcroLoopOuterWidthMm);
+    opts.velcroLoopFrameWidthMm = double(opts.velcroLoopFrameWidthMm);
+    if isempty(opts.velcroLoopThicknessMm)
+        opts.velcroLoopThicknessMm = max(opts.railHeightMm, 3);
+    else
+        opts.velcroLoopThicknessMm = double(opts.velcroLoopThicknessMm);
+    end
+    opts.velcroLoopOutboardOffsetMm = double(opts.velcroLoopOutboardOffsetMm);
+    opts.velcroLoopAttachLengthMm = double(opts.velcroLoopAttachLengthMm);
+    if isempty(opts.velcroLoopAttachWidthMm)
+        opts.velcroLoopAttachWidthMm = opts.velcroLoopOuterWidthMm;
+    else
+        opts.velcroLoopAttachWidthMm = double(opts.velcroLoopAttachWidthMm);
+    end
+    opts.velcroLoopFloorAtBed = logical(opts.velcroLoopFloorAtBed);
     opts.holderSupportMode = normalizeHolderSupportMode(opts.holderSupportMode);
     opts.holderSupportCount = round(double(opts.holderSupportCount));
     opts.holderSupportMinAngleDeg = double(opts.holderSupportMinAngleDeg);
@@ -1120,7 +1167,7 @@ end
 
 function out = makePreflightOutput(layout, TRskin, TRrailSkin, TRholders, TRrails, ...
         targetsMm, names, roleLabels, earExclusions, implantExclusions, strap, ...
-        TRholderSupports, holderInfo, manufacturingSurfaceInfo, ...
+        velcroAnchors, TRholderSupports, holderInfo, manufacturingSurfaceInfo, ...
         railBuildInfo, opts, totalTimer)
     meshInfo = struct();
     meshInfo.skin = meshStats(TRskin);
@@ -1143,7 +1190,7 @@ function out = makePreflightOutput(layout, TRskin, TRrailSkin, TRholders, TRrail
         logMsg(opts, 'Building manufacturing preflight QC figure.');
         fig = makeQcFigure(TRskin, TRholders, TRrails, emptyTri, emptyTri, ...
             targetsMm, names, roleLabels, earExclusions, implantExclusions, ...
-            strap, holderInfo, opts, figVisible);
+            strap, velcroAnchors, holderInfo, opts, figVisible);
         if opts.saveFigures
             qcFile = fullfile(opts.outputDir, [opts.manufacturingTag '_preflight_qc.png']);
             saveQcFigure(fig, qcFile);
@@ -1175,6 +1222,7 @@ function out = makePreflightOutput(layout, TRskin, TRrailSkin, TRholders, TRrail
     out.earExclusions = compactEarExclusions(earExclusions);
     out.implantExclusions = compactImplantExclusions(implantExclusions);
     out.strap = stripStrapFns(strap);
+    out.velcroAnchors = stripOccFns(velcroAnchors);
     out.holderSupports = meshStats(TRholderSupports);
     out.railBuildInfo = railBuildInfo;
     out.options = opts;
@@ -2455,6 +2503,568 @@ function [anchors, outDirs, source] = bboxLateralAnchors(TRrails, opts)
     source = 'bboxLateral';
 end
 
+function combined = combineExtraOccupancy(varargin)
+    combined = struct('occFns', {{}}, 'extraPoints', zeros(0, 3));
+    for i = 1:nargin
+        item = varargin{i};
+        if isempty(item) || ~isstruct(item)
+            continue;
+        end
+        if isfield(item, 'occFns') && ~isempty(item.occFns)
+            combined.occFns = [combined.occFns, item.occFns]; %#ok<AGROW>
+        end
+        if isfield(item, 'extraPoints') && ~isempty(item.extraPoints)
+            combined.extraPoints = [combined.extraPoints; ...
+                double(item.extraPoints)]; %#ok<AGROW>
+        end
+    end
+end
+
+function velcro = makeVelcroAnchorOccupancy(TRskin, TRrails, earExclusions, opts)
+    velcro = struct();
+    velcro.mode = opts.velcroAnchorMode;
+    velcro.file = opts.velcroAnchorFile;
+    velcro.source = 'none';
+    velcro.names = {};
+    velcro.anchors = zeros(0, 3);
+    velcro.outDirs = zeros(0, 3);
+    velcro.normals = zeros(0, 3);
+    velcro.occFns = {};
+    velcro.extraPoints = zeros(0, 3);
+    velcro.params = velcroGeometryFromOptions(opts);
+
+    if strcmp(opts.velcroAnchorMode, 'none')
+        return;
+    end
+
+    switch opts.velcroAnchorMode
+        case 'file'
+            if ~isempty(opts.velcroAnchorFile)
+                plan = loadVelcroAnchorPlan(opts.velcroAnchorFile);
+                source = opts.velcroAnchorFile;
+            elseif hasVelcroAnchorPoints(opts.velcroAnchorOptions)
+                plan = opts.velcroAnchorOptions;
+                source = 'velcroAnchorOptions';
+            else
+                plan = loadVelcroAnchorPlan(opts.velcroAnchorFile);
+                source = opts.velcroAnchorFile;
+            end
+        case 'sixPoint'
+            if ~isempty(opts.velcroAnchorFile) && exist(opts.velcroAnchorFile, 'file') == 2
+                plan = loadVelcroAnchorPlan(opts.velcroAnchorFile);
+                source = opts.velcroAnchorFile;
+            else
+                TRanchor = TRskin;
+                if ~isempty(TRrails) && ~isempty(TRrails.Points)
+                    TRanchor = TRrails;
+                end
+                plan = autoVelcroAnchorPlan(TRanchor, earExclusions, opts);
+                source = 'autoSixPoint';
+            end
+        otherwise
+            error('acsBuildCapMakerManufacturingStl:BadVelcroAnchorMode', ...
+                'Unknown velcro anchor mode "%s".', opts.velcroAnchorMode);
+    end
+
+    if ~isempty(fieldnames(opts.velcroAnchorOptions))
+        plan = mergeStructs(plan, opts.velcroAnchorOptions);
+    end
+    plan = normalizeVelcroAnchorPlan(plan, TRskin, opts);
+    velcro.params = velcroGeometryFromPlanOrOptions(plan, opts);
+    if isempty(plan.anchorsMm)
+        warning('acsBuildCapMakerManufacturingStl:NoVelcroAnchors', ...
+            'Velcro anchor mode "%s" did not produce anchor points.', ...
+            opts.velcroAnchorMode);
+        velcro.mode = 'none';
+        return;
+    end
+
+    velcro.source = source;
+    velcro.names = plan.names;
+    velcro.anchors = plan.anchorsMm;
+    velcro.outDirs = plan.outDirs;
+    velcro.normals = plan.normals;
+
+    for i = 1:size(velcro.anchors, 1)
+        anchor = velcro.anchors(i, :);
+        outDir = velcro.outDirs(i, :);
+        normal = velcro.normals(i, :);
+        geom = velcro.params;
+        zBed = opts.zBedMm;
+        velcro.occFns{end + 1} = @(X,Y,Z) velcroAnchorOccFn( ...
+            X, Y, Z, anchor, outDir, normal, geom, zBed); %#ok<AGROW>
+        velcro.extraPoints = [velcro.extraPoints; ...
+            velcroAnchorExtentPoints(anchor, outDir, normal, geom)]; %#ok<AGROW>
+    end
+
+    logMsg(opts, '  velcro anchors: %d %s loop(s), source=%s', ...
+        size(velcro.anchors, 1), opts.velcroAnchorMode, source);
+end
+
+function geom = velcroGeometryFromOptions(opts)
+    geom = struct( ...
+        'outerLengthMm', opts.velcroLoopOuterLengthMm, ...
+        'outerWidthMm', opts.velcroLoopOuterWidthMm, ...
+        'frameWidthMm', opts.velcroLoopFrameWidthMm, ...
+        'thicknessMm', opts.velcroLoopThicknessMm, ...
+        'outboardOffsetMm', opts.velcroLoopOutboardOffsetMm, ...
+        'attachLengthMm', opts.velcroLoopAttachLengthMm, ...
+        'attachWidthMm', opts.velcroLoopAttachWidthMm, ...
+        'floorAtBed', opts.velcroLoopFloorAtBed);
+    if geom.outerLengthMm <= 2 * geom.frameWidthMm || ...
+            geom.outerWidthMm <= 2 * geom.frameWidthMm
+        error('acsBuildCapMakerManufacturingStl:BadVelcroLoopGeometry', ...
+            ['velcroLoopFrameWidthMm leaves no open slot. Increase ', ...
+             'velcroLoopOuterLengthMm/velcroLoopOuterWidthMm or reduce ', ...
+             'velcroLoopFrameWidthMm.']);
+    end
+end
+
+function geom = velcroGeometryFromPlanOrOptions(plan, opts)
+    geom = velcroGeometryFromOptions(opts);
+    if isstruct(plan) && isfield(plan, 'geometry') && isstruct(plan.geometry)
+        geom = mergeVelcroGeometry(geom, plan.geometry);
+    end
+    if isstruct(plan) && isfield(plan, 'params') && isstruct(plan.params)
+        geom = mergeVelcroGeometry(geom, plan.params);
+    end
+    if geom.outerLengthMm <= 2 * geom.frameWidthMm || ...
+            geom.outerWidthMm <= 2 * geom.frameWidthMm
+        error('acsBuildCapMakerManufacturingStl:BadVelcroLoopGeometry', ...
+            ['Saved velcro anchor geometry leaves no open slot. Increase ', ...
+             'outerLengthMm/outerWidthMm or reduce frameWidthMm.']);
+    end
+end
+
+function geom = mergeVelcroGeometry(geom, overrides)
+    aliases = {
+        'outerLengthMm', {'outerLengthMm', 'velcroLoopOuterLengthMm'}
+        'outerWidthMm', {'outerWidthMm', 'velcroLoopOuterWidthMm'}
+        'frameWidthMm', {'frameWidthMm', 'velcroLoopFrameWidthMm'}
+        'thicknessMm', {'thicknessMm', 'velcroLoopThicknessMm'}
+        'outboardOffsetMm', {'outboardOffsetMm', 'velcroLoopOutboardOffsetMm'}
+        'attachLengthMm', {'attachLengthMm', 'velcroLoopAttachLengthMm'}
+        'attachWidthMm', {'attachWidthMm', 'velcroLoopAttachWidthMm'}
+        'floorAtBed', {'floorAtBed', 'velcroLoopFloorAtBed'}};
+    for i = 1:size(aliases, 1)
+        target = aliases{i, 1};
+        keys = aliases{i, 2};
+        for k = 1:numel(keys)
+            if ~isfield(overrides, keys{k}) || isempty(overrides.(keys{k}))
+                continue;
+            end
+            value = overrides.(keys{k});
+            if strcmp(target, 'floorAtBed')
+                geom.(target) = logical(value);
+            else
+                value = double(value);
+                if isscalar(value) && isfinite(value)
+                    geom.(target) = value;
+                end
+            end
+            break;
+        end
+    end
+end
+
+function plan = loadVelcroAnchorPlan(fileName)
+    if isempty(fileName) || exist(fileName, 'file') ~= 2
+        error('acsBuildCapMakerManufacturingStl:VelcroAnchorFileMissing', ...
+            'Velcro anchor file not found: %s', fileName);
+    end
+    S = load(fileName);
+    candidates = {'velcroAnchors', 'anchorPlan', 'out', 'plan'};
+    plan = [];
+    for i = 1:numel(candidates)
+        if isfield(S, candidates{i}) && isstruct(S.(candidates{i})) && ...
+                hasVelcroAnchorPoints(S.(candidates{i}))
+            plan = S.(candidates{i});
+            return;
+        end
+    end
+    fields = fieldnames(S);
+    for i = 1:numel(fields)
+        if isstruct(S.(fields{i})) && hasVelcroAnchorPoints(S.(fields{i}))
+            plan = S.(fields{i});
+            return;
+        end
+    end
+    error('acsBuildCapMakerManufacturingStl:BadVelcroAnchorFile', ...
+        'No velcro anchor plan was found in %s.', fileName);
+end
+
+function tf = hasVelcroAnchorPoints(S)
+    tf = isstruct(S) && ((isfield(S, 'anchorsMm') && ~isempty(S.anchorsMm)) || ...
+        (isfield(S, 'anchors') && ~isempty(S.anchors)));
+end
+
+function plan = normalizeVelcroAnchorPlan(plan, TRskin, opts)
+    if isfield(plan, 'anchorsMm')
+        anchors = double(plan.anchorsMm);
+    elseif isfield(plan, 'anchors')
+        anchors = double(plan.anchors);
+    else
+        anchors = zeros(0, 3);
+    end
+    if isempty(anchors)
+        plan.anchorsMm = zeros(0, 3);
+        return;
+    end
+    if size(anchors, 2) ~= 3
+        error('acsBuildCapMakerManufacturingStl:BadVelcroAnchorPoints', ...
+            'Velcro anchor points must be N-by-3 coordinates in print mm.');
+    end
+    nRaw = size(anchors, 1);
+    keep = all(isfinite(anchors), 2);
+    anchors = anchors(keep, :);
+
+    if isfield(plan, 'names') && numel(plan.names) >= nRaw
+        names = cellstr(plan.names(:));
+        names = names(1:nRaw);
+        names = names(keep);
+    else
+        names = defaultVelcroAnchorNames(size(anchors, 1));
+    end
+
+    outDirs = zeros(0, 3);
+    if isfield(plan, 'outDirs') && size(plan.outDirs, 2) == 3 && ...
+            size(plan.outDirs, 1) == nRaw
+        outDirs = double(plan.outDirs);
+        outDirs = outDirs(keep, :);
+    elseif isfield(plan, 'outDirs') && size(plan.outDirs, 2) == 3 && ...
+            size(plan.outDirs, 1) >= size(anchors, 1)
+        outDirs = double(plan.outDirs(1:size(anchors, 1), :));
+    end
+    normals = zeros(0, 3);
+    if isfield(plan, 'normals') && size(plan.normals, 2) == 3 && ...
+            size(plan.normals, 1) == nRaw
+        normals = double(plan.normals);
+        normals = normals(keep, :);
+    elseif isfield(plan, 'normals') && size(plan.normals, 2) == 3 && ...
+            size(plan.normals, 1) >= size(anchors, 1)
+        normals = double(plan.normals(1:size(anchors, 1), :));
+    end
+    [outDirs, normals] = completeVelcroAnchorFrames(TRskin, anchors, ...
+        outDirs, normals, opts);
+
+    plan.anchorsMm = anchors;
+    plan.names = names(:);
+    plan.outDirs = outDirs;
+    plan.normals = normals;
+end
+
+function names = defaultVelcroAnchorNames(n)
+    base = {'leftCaudolateral', 'leftPreauricular', 'leftRostrolateral', ...
+        'rightCaudolateral', 'rightPreauricular', 'rightRostrolateral'};
+    if n <= numel(base)
+        names = base(1:n).';
+    else
+        names = arrayfun(@(i) sprintf('velcroAnchor%d', i), ...
+            (1:n).', 'UniformOutput', false);
+    end
+end
+
+function plan = autoVelcroAnchorPlan(TRanchor, earExclusions, opts)
+    V = double(TRanchor.Points);
+    V = V(all(isfinite(V), 2), :);
+    V = V(V(:, 3) >= opts.zBedMm - 0.5, :);
+    if size(V, 1) < 12
+        V = double(TRanchor.Points);
+        V = V(all(isfinite(V), 2), :);
+    end
+    center = median(V, 1);
+    xSpan = max(eps, max(V(:, 1)) - min(V(:, 1)));
+    ySpan = max(eps, max(V(:, 2)) - min(V(:, 2)));
+    xTargets = [localPercentile(V(:, 1), 2), localPercentile(V(:, 1), 98)];
+    xPreauricTargets = xTargets + ...
+        [-opts.velcroLoopOuterWidthMm, opts.velcroLoopOuterWidthMm];
+    yCaudal = localPercentile(V(:, 2), 2);
+    yMid = localPercentile(V(:, 2), 50);
+    yRostral = localPercentile(V(:, 2), 82);
+
+    if isfield(earExclusions, 'exclusionCenters') && ...
+            isfield(earExclusions, 'exclusionRadiusMM') && ...
+            size(earExclusions.exclusionCenters, 1) >= 2
+        centers = double(earExclusions.exclusionCenters);
+        radii = double(earExclusions.exclusionRadiusMM(:));
+        if isscalar(radii)
+            radii = repmat(radii, size(centers, 1), 1);
+        end
+        [~, leftEar] = min(centers(:, 1));
+        [~, rightEar] = max(centers(:, 1));
+        leftPreauricY = centers(leftEar, 2) + radii(leftEar) + opts.strapRostralOffsetMm;
+        rightPreauricY = centers(rightEar, 2) + radii(rightEar) + opts.strapRostralOffsetMm;
+    else
+        leftPreauricY = yMid;
+        rightPreauricY = yMid;
+    end
+
+    specs = {
+        'leftCaudolateral',  -1, xTargets(1), yCaudal, 'caudalEdge'
+        'leftPreauricular',  -1, xPreauricTargets(1), leftPreauricY, 'preauricular'
+        'leftRostrolateral', -1, xTargets(1), yRostral, 'lateralEdge'
+        'rightCaudolateral',  1, xTargets(2), yCaudal, 'caudalEdge'
+        'rightPreauricular',  1, xPreauricTargets(2), rightPreauricY, 'preauricular'
+        'rightRostrolateral', 1, xTargets(2), yRostral, 'lateralEdge'};
+
+    anchors = zeros(size(specs, 1), 3);
+    outDirs = zeros(size(specs, 1), 3);
+    for i = 1:size(specs, 1)
+        sideSign = specs{i, 2};
+        target = [specs{i, 3}, specs{i, 4}, localPercentile(V(:, 3), 35)];
+        placementMode = specs{i, 5};
+        anchors(i, :) = selectAutoVelcroAnchor(V, target, sideSign, ...
+            center, xSpan, ySpan, placementMode);
+        outDirs(i, :) = roleOutDir(anchors(i, :), center, sideSign, placementMode);
+    end
+
+    plan = struct();
+    plan.createdOn = char(datetime('now'));
+    plan.type = 'velcroAnchorPlan';
+    plan.mode = 'sixPoint';
+    plan.source = 'autoSixPoint';
+    plan.names = specs(:, 1);
+    plan.anchorsMm = anchors;
+    plan.outDirs = outDirs;
+end
+
+function anchor = selectAutoVelcroAnchor(V, target, sideSign, center, xSpan, ySpan, mode)
+    sideMask = sideSign * (V(:, 1) - center(1)) >= -0.08 * xSpan;
+    if nnz(sideMask) < 6
+        sideMask = true(size(V, 1), 1);
+    end
+    rows = find(sideMask);
+    dz = max(eps, max(V(:, 3)) - min(V(:, 3)));
+    mode = lower(char(mode));
+    switch mode
+        case 'caudaledge'
+            caudalCut = localPercentile(V(rows, 2), 6);
+            caudalRows = rows(V(rows, 2) <= caudalCut);
+            if numel(caudalRows) >= 6
+                rows = caudalRows;
+            end
+            score = 0.35 * ((V(rows, 1) - target(1)) ./ xSpan) .^ 2 + ...
+                7.00 * ((V(rows, 2) - target(2)) ./ ySpan) .^ 2 + ...
+                0.08 * ((V(rows, 3) - target(3)) ./ dz) .^ 2;
+        case 'lateraledge'
+            lateralScore = sideSign * (V(rows, 1) - center(1));
+            lateralCut = localPercentile(lateralScore, 88);
+            lateralRows = rows(lateralScore >= lateralCut);
+            if numel(lateralRows) >= 6
+                rows = lateralRows;
+            end
+            score = 6.00 * ((V(rows, 1) - target(1)) ./ xSpan) .^ 2 + ...
+                1.25 * ((V(rows, 2) - target(2)) ./ ySpan) .^ 2 + ...
+                0.08 * ((V(rows, 3) - target(3)) ./ dz) .^ 2;
+        otherwise
+            score = 3.00 * ((V(rows, 1) - target(1)) ./ xSpan) .^ 2 + ...
+                1.75 * ((V(rows, 2) - target(2)) ./ ySpan) .^ 2 + ...
+                0.08 * ((V(rows, 3) - target(3)) ./ dz) .^ 2;
+    end
+    [~, localIdx] = min(score);
+    anchor = V(rows(localIdx), :);
+end
+
+function dir = roleOutDir(point, center, sideSign, mode)
+    if nargin < 3 || sideSign == 0 || ~isfinite(sideSign)
+        sideSign = signWithFallback(point(1) - center(1));
+    end
+    if nargin < 4 || isempty(mode)
+        mode = 'preauricular';
+    end
+    switch lower(char(mode))
+        case 'caudaledge'
+            caudalTiltDeg = 30;
+            planarSpinDeg = 0;
+        case 'lateraledge'
+            caudalTiltDeg = 12;
+            planarSpinDeg = 20 * sideSign;
+        otherwise
+            caudalTiltDeg = 5;
+            planarSpinDeg = 0;
+    end
+    dir = [sideSign * cosd(caudalTiltDeg), -sind(caudalTiltDeg), 0];
+    if planarSpinDeg ~= 0
+        dir = rotateVectorAboutAxis(dir, [0 0 1], planarSpinDeg);
+    end
+    dir = normalizeRow(dir);
+end
+
+function out = rotateVectorAboutAxis(vec, axisVec, angleDeg)
+    vec = normalizeRow(vec);
+    axisVec = normalizeRow(axisVec);
+    if norm(vec) <= eps || norm(axisVec) <= eps
+        out = vec;
+        return;
+    end
+    c = cosd(angleDeg);
+    s = sind(angleDeg);
+    out = vec .* c + cross(axisVec, vec) .* s + ...
+        axisVec .* dot(axisVec, vec) .* (1 - c);
+    out = normalizeRow(out);
+end
+
+function dir = lateralOutDir(point, center, sideSign)
+    if nargin < 3 || sideSign == 0 || ~isfinite(sideSign)
+        sideSign = signWithFallback(point(1) - center(1));
+    end
+    dir = [sideSign 0 0];
+    if norm(dir) <= eps
+        dir = [sideSign 0 0];
+    end
+    dir = normalizeRow(dir);
+end
+
+function [outDirs, normals] = completeVelcroAnchorFrames(TRskin, anchors, ...
+        outDirsIn, normalsIn, opts)
+    V = double(TRskin.Points);
+    center = median(V, 1);
+    nAnchors = size(anchors, 1);
+    surfaceNormals = surfaceNormalsAtPoints(TRskin, anchors);
+    normals = zeros(nAnchors, 3);
+    outDirs = zeros(nAnchors, 3);
+    for i = 1:nAnchors
+        n = [0 0 1];
+        if size(normalsIn, 1) >= i && norm(normalsIn(i, :)) > eps
+            n = normalizeRow(normalsIn(i, :));
+        elseif size(surfaceNormals, 1) >= i && norm(surfaceNormals(i, :)) > eps
+            n = normalizeRow(surfaceNormals(i, :));
+        end
+        radial = anchors(i, :) - center;
+        if dot(n, radial) < 0
+            n = -n;
+        end
+
+        if size(outDirsIn, 1) >= i && norm(outDirsIn(i, :)) > eps
+            d = normalizeRow(outDirsIn(i, :));
+        else
+            d = lateralOutDir(anchors(i, :), center, signWithFallback(radial(1)));
+        end
+        d = d - dot(d, n) * n;
+        if norm(d) <= eps
+            d = lateralOutDir(anchors(i, :), center, signWithFallback(radial(1)));
+            d = d - dot(d, n) * n;
+        end
+        if norm(d) <= eps
+            [d, ~] = localTransverseBasis(n);
+        else
+            d = normalizeRow(d);
+        end
+        normals(i, :) = n;
+        outDirs(i, :) = d;
+    end
+    if opts.velcroLoopFloorAtBed
+        normals = orientNormalsForBedClearance(normals);
+    end
+end
+
+function s = signWithFallback(value)
+    if value < 0
+        s = -1;
+    else
+        s = 1;
+    end
+end
+
+function normals = orientNormalsForBedClearance(normals)
+    flip = normals(:, 3) < -0.85;
+    normals(flip, :) = -normals(flip, :);
+end
+
+function normals = surfaceNormalsAtPoints(TRskin, points)
+    V = double(TRskin.Points);
+    Nv = vertexNormal(TRskin);
+    Nv = bsxfun(@rdivide, Nv, max(sqrt(sum(Nv .^ 2, 2)), eps));
+    center = median(V, 1);
+    normals = zeros(size(points));
+    for i = 1:size(points, 1)
+        d2 = sum((V - points(i, :)) .^ 2, 2);
+        [~, idx] = min(d2);
+        n = Nv(idx, :);
+        if dot(n, V(idx, :) - center) < 0
+            n = -n;
+        end
+        normals(i, :) = normalizeRow(n);
+    end
+end
+
+function mask = velcroAnchorOccFn(X, Y, Z, anchor, outDir, normal, geom, zBed)
+    [center, uHat, vHat, nHat] = velcroAnchorFrame(anchor, outDir, normal, geom);
+    dX = X - center(1);
+    dY = Y - center(2);
+    dZ = Z - center(3);
+    u = uHat(1) * dX + uHat(2) * dY + uHat(3) * dZ;
+    v = vHat(1) * dX + vHat(2) * dY + vHat(3) * dZ;
+    w = nHat(1) * dX + nHat(2) * dY + nHat(3) * dZ;
+
+    outerHalfU = geom.outerLengthMm / 2;
+    outerHalfV = geom.outerWidthMm / 2;
+    innerHalfU = (geom.outerLengthMm - 2 * geom.frameWidthMm) / 2;
+    innerHalfV = (geom.outerWidthMm - 2 * geom.frameWidthMm) / 2;
+    halfT = geom.thicknessMm / 2;
+
+    slab = abs(w) <= halfT;
+    outer = (u ./ outerHalfU) .^ 2 + (v ./ outerHalfV) .^ 2 <= 1;
+    inner = (u ./ innerHalfU) .^ 2 + (v ./ innerHalfV) .^ 2 <= 1;
+    ring = slab & outer & ~inner;
+
+    attach = false(size(ring));
+    if geom.attachLengthMm > 0
+        attach = slab & ...
+            abs(u) <= geom.attachWidthMm / 2 & ...
+            v >= (-outerHalfV - geom.attachLengthMm) & ...
+            v <= (-outerHalfV + geom.frameWidthMm);
+    end
+    mask = ring | attach;
+    if geom.floorAtBed
+        mask = mask & Z >= zBed;
+    end
+end
+
+function [center, uHat, vHat, nHat] = velcroAnchorFrame(anchor, outDir, normal, geom)
+    nHat = normalizeRow(normal);
+    if norm(nHat) <= eps
+        nHat = [0 0 1];
+    end
+    vHat = normalizeRow(outDir - dot(outDir, nHat) * nHat);
+    if norm(vHat) <= eps
+        [~, vHat] = localTransverseBasis(nHat);
+    end
+    uHat = normalizeRow(cross(nHat, vHat));
+    if norm(uHat) <= eps
+        [uHat, vHat] = localTransverseBasis(nHat);
+    end
+    center = anchor + geom.outboardOffsetMm * vHat;
+end
+
+function P = velcroAnchorExtentPoints(anchor, outDir, normal, geom)
+    [center, uHat, vHat, nHat] = velcroAnchorFrame(anchor, outDir, normal, geom);
+    uVals = [-geom.outerLengthMm/2, geom.outerLengthMm/2];
+    vVals = [-geom.outerWidthMm/2 - geom.attachLengthMm, geom.outerWidthMm/2];
+    wVals = [-geom.thicknessMm/2, geom.thicknessMm/2];
+    [U, V, W] = ndgrid(uVals, vVals, wVals);
+    P = bsxfun(@plus, center, ...
+        U(:) * uHat + V(:) * vHat + W(:) * nHat);
+    P = [P; anchor]; %#ok<AGROW>
+end
+
+function q = localPercentile(values, pct)
+    values = sort(values(isfinite(values(:))));
+    if isempty(values)
+        q = NaN;
+        return;
+    end
+    pct = max(0, min(100, pct));
+    pos = 1 + (numel(values) - 1) * pct / 100;
+    lo = floor(pos);
+    hi = ceil(pos);
+    if lo == hi
+        q = values(lo);
+    else
+        q = values(lo) + (pos - lo) * (values(hi) - values(lo));
+    end
+end
+
 function stats = meshStats(TR)
     stats = struct();
     if isempty(TR) || isempty(TR.Points)
@@ -2490,7 +3100,7 @@ end
 
 function fig = makeQcFigure(TRskin, TRholders, TRrails, TRtpe, TRpla, ...
         targetsMm, names, roles, earExclusions, implantExclusions, strap, ...
-        holderInfo, opts, figVisible)
+        velcroAnchors, holderInfo, opts, figVisible)
     TRskinDisplay = decimateForQc(TRskin, opts.qcMaxFaces, opts, 'skin QC mesh');
     TRholdersDisplay = decimateForQc(TRholders, opts.qcMaxFaces, opts, 'holder QC mesh');
     TRrailsDisplay = decimateForQc(TRrails, opts.qcMaxFaces, opts, 'rail QC mesh');
@@ -2514,6 +3124,7 @@ function fig = makeQcFigure(TRskin, TRholders, TRrails, TRtpe, TRpla, ...
     drawEarSpheres(ax1, earExclusions);
     drawImplantExclusions(ax1, implantExclusions);
     drawStrapAnchors(ax1, strap);
+    drawVelcroAnchors(ax1, velcroAnchors);
     if opts.showQcLabels
         labelPoints3(ax1, holderSurfaceMm, names, roles);
     end
@@ -2527,6 +3138,7 @@ function fig = makeQcFigure(TRskin, TRholders, TRrails, TRtpe, TRpla, ...
     drawHolderSiteMarkers(ax2, holderSurfaceMm, targetsMm);
     drawImplantExclusions(ax2, implantExclusions);
     drawStrapAnchors(ax2, strap);
+    drawVelcroAnchors(ax2, velcroAnchors);
     if isempty(TRplaDisplay) && isempty(TRtpeDisplay)
         title(ax2, 'Final STL meshes (not built in preflight)');
         text(ax2, 0.5, 0.5, 'Run the STL build cell to voxel-fuse TPE/PLA meshes.', ...
@@ -2699,6 +3311,71 @@ function drawStrapAnchors(ax, strap)
     end
 end
 
+function drawVelcroAnchors(ax, velcroAnchors)
+    if isempty(velcroAnchors) || ~isstruct(velcroAnchors) || ...
+            ~isfield(velcroAnchors, 'anchors') || isempty(velcroAnchors.anchors)
+        return;
+    end
+    A = double(velcroAnchors.anchors);
+    D = double(velcroAnchors.outDirs);
+    N = double(velcroAnchors.normals);
+    if ~isfield(velcroAnchors, 'params') || isempty(velcroAnchors.params)
+        return;
+    end
+    geom = velcroAnchors.params;
+    names = defaultVelcroAnchorNames(size(A, 1));
+    if isfield(velcroAnchors, 'names') && numel(velcroAnchors.names) >= size(A, 1)
+        names = cellstr(velcroAnchors.names(:));
+    end
+    colorOuter = [0.00 0.60 0.65];
+    colorInner = [0.00 0.35 0.42];
+    scatter3(ax, A(:, 1), A(:, 2), A(:, 3), 70, ...
+        colorOuter, 'filled', 'MarkerEdgeColor', 'k');
+    for i = 1:size(A, 1)
+        [outer, inner, attach] = velcroAnchorOutline(A(i, :), ...
+            D(i, :), N(i, :), geom);
+        plot3(ax, outer(:, 1), outer(:, 2), outer(:, 3), ...
+            'Color', colorOuter, 'LineWidth', 2.2);
+        plot3(ax, inner(:, 1), inner(:, 2), inner(:, 3), ...
+            'Color', colorInner, 'LineWidth', 1.5);
+        if ~isempty(attach)
+            plot3(ax, attach(:, 1), attach(:, 2), attach(:, 3), ...
+                'Color', colorOuter, 'LineStyle', '--', 'LineWidth', 1.2);
+        end
+        quiver3(ax, A(i, 1), A(i, 2), A(i, 3), ...
+            12 * D(i, 1), 12 * D(i, 2), 12 * D(i, 3), ...
+            0, 'Color', colorOuter, 'LineWidth', 1.8);
+        text(ax, A(i, 1), A(i, 2), A(i, 3), [' ' names{i}], ...
+            'Color', colorInner, 'FontWeight', 'bold', ...
+            'FontSize', 8, 'Interpreter', 'none');
+    end
+end
+
+function [outer, inner, attach] = velcroAnchorOutline(anchor, outDir, normal, geom)
+    [center, uHat, vHat, nHat] = velcroAnchorFrame(anchor, outDir, normal, geom);
+    theta = linspace(0, 2*pi, 97).';
+    outer = center + ...
+        (geom.outerLengthMm / 2 * cos(theta)) * uHat + ...
+        (geom.outerWidthMm / 2 * sin(theta)) * vHat + ...
+        (0.55 * geom.thicknessMm) * nHat;
+    innerLength = geom.outerLengthMm - 2 * geom.frameWidthMm;
+    innerWidth = geom.outerWidthMm - 2 * geom.frameWidthMm;
+    inner = center + ...
+        (innerLength / 2 * cos(theta)) * uHat + ...
+        (innerWidth / 2 * sin(theta)) * vHat + ...
+        (0.58 * geom.thicknessMm) * nHat;
+    attach = zeros(0, 3);
+    if geom.attachLengthMm > 0
+        u0 = -geom.attachWidthMm / 2;
+        u1 = geom.attachWidthMm / 2;
+        v0 = -geom.outerWidthMm / 2 - geom.attachLengthMm;
+        v1 = -geom.outerWidthMm / 2 + geom.frameWidthMm;
+        UV = [u0 v0; u1 v0; u1 v1; u0 v1; u0 v0];
+        attach = center + UV(:, 1) * uHat + UV(:, 2) * vHat + ...
+            (0.6 * geom.thicknessMm) * nHat;
+    end
+end
+
 function labelPoints3(ax, P, names, roles)
     for i = 1:size(P, 1)
         label = names{i};
@@ -2787,6 +3464,12 @@ function strap = stripStrapFns(strap)
     end
 end
 
+function value = stripOccFns(value)
+    if isfield(value, 'occFns')
+        value = rmfield(value, 'occFns');
+    end
+end
+
 function out = stripForSave(out)
     if isfield(out, 'figure')
         out = rmfield(out, 'figure');
@@ -2871,6 +3554,22 @@ function mode = normalizeStrapMode(modeIn)
         otherwise
             error('acsBuildCapMakerManufacturingStl:BadStrapMode', ...
                 'strapMode must be ''earRostral'', ''bboxLateral'', or ''none''.');
+    end
+end
+
+function mode = normalizeVelcroAnchorMode(modeIn)
+    key = lower(regexprep(strtrim(char(modeIn)), '[\s_\-]+', ''));
+    switch key
+        case {'none', 'off', 'no', 'false'}
+            mode = 'none';
+        case {'sixpoint', 'sixpoints', 'auto', 'autosixpoint', ...
+                'velcro', 'anchors', 'velcroanchors', 'on', 'true'}
+            mode = 'sixPoint';
+        case {'file', 'fromfile', 'saved', 'load', 'reuse'}
+            mode = 'file';
+        otherwise
+            error('acsBuildCapMakerManufacturingStl:BadVelcroAnchorMode', ...
+                'velcroAnchorMode must be ''none'', ''sixPoint'', or ''file''.');
     end
 end
 

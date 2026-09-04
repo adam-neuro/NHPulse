@@ -194,7 +194,10 @@ where a cap becomes a slicer-ready object.
 
 Check: electrode holders should be clear through to the scalp, rails should be
 connected, keepouts should be respected, and no holders should be clipped by the
-printer bed or placed on the underside of the cap.
+printer bed or placed on the underside of the cap. For workflows that use
+external hook-and-loop straps, users can run `acsPlanVelcroAnchors` before this
+step and export the final cap with `strapMode='none'` plus
+`velcroAnchorMode='file'`.
 
 ### 13 - Verification
 

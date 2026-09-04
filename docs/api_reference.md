@@ -58,6 +58,8 @@ description.
 ## Manufacturing And QC
 
 - `acsBuildCapMakerFitCheckStl`: create a sparse PLA fit-check scaffold.
+- `acsPlanVelcroAnchors`: propose and refine six Velcro-loop attachment
+  anchors around the cap edge.
 - `acsBuildCapMakerManufacturingStl`: export dual-material cap STL products.
 - `acsInspectCapMakerManufacturingGeometry`: inspect scalp/cap/electrode
   geometry and orientation diagnostics.

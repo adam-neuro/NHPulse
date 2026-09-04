@@ -79,6 +79,7 @@ Several functions open MATLAB figures for user selection or refinement:
 - ear/painted exclusion selection,
 - target voxel selection,
 - headpost or chamber placement.
+- optional Velcro attachment-loop placement.
 
 Most of these write MAT files so a later run can reuse saved decisions. When
 debugging a replay, prefer `force=false` after the first successful pass.
@@ -105,6 +106,14 @@ objects on the head model. The resulting geometry can be used to avoid building
 cap material over exposed implants and, for some workflows, to include implant
 conductivity in electrical models.
 
+### Velcro Attachment Loops
+
+For caps that should be held by external hook-and-loop straps rather than
+printed chin straps, `acsPlanVelcroAnchors` proposes six lateral anchor loops:
+caudolateral, preauricular, and rostrolateral on each side. The GUI opens with
+automatic placements and lets the user shift-click visible scalp vertices to
+move the active loop. The saved MAT plan can be reused during final STL export.
+
 ### Target Selection
 
 The target-voxel picker selects the brain location that tES optimization should
@@ -126,6 +135,11 @@ remain aligned. The tested development setup used a LulzBot TAZ Pro with PLA in
 extruder 1 and NinjaTek Chinchilla TPE in extruder 2. See
 [3D Printing And Fabrication](fabrication.md) for slicing, print-preparation,
 support-removal, and optional G-code patching notes.
+
+To omit printed chin straps and use refined Velcro loops instead, create a loop
+plan with `acsPlanVelcroAnchors`, then call
+`acsBuildCapMakerManufacturingStl` with `strapMode='none'`,
+`velcroAnchorMode='file'`, and `velcroAnchorFile` set to the saved plan.
 
 ## Lead-Field Modes
 

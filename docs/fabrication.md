@@ -24,6 +24,13 @@ NHPulse can also export sparse PLA-only fit-check caps. These are faster,
 single-material scaffolds intended to test the overall cap shape before
 committing to a full dual-material print.
 
+Instead of printing integrated chin straps, users can also add reinforced
+Velcro attachment loops around the cap edge. `acsPlanVelcroAnchors` proposes
+six bilateral loop locations, lets the user refine them on the scalp mesh, and
+saves an anchor plan. Pass that plan to the final STL build with
+`velcroAnchorMode='file'`, `velcroAnchorFile=velcroPlan.outputFile`, and
+`strapMode='none'` if the printed chin straps should be omitted.
+
 ## Tested Hardware
 
 The current fabrication workflow has been tested with:
@@ -101,7 +108,8 @@ Before printing:
 - confirm nozzle diameters and filament diameters in the slicer,
 - verify that the TPE cap is not clipped by the bed or by support geometry,
 - check that all electrode-holder bores remain open,
-- check that chin straps are connected and have the expected corrugation,
+- check that chin straps are connected and have the expected corrugation, or
+  that Velcro loops are connected and have open slots,
 - clean both nozzles so auto bed leveling can contact the bed correctly,
 - apply the bed preparation used by your local protocol, such as a glue-stick
   layer for the tested TAZ Pro setup,
