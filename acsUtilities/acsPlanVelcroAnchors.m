@@ -38,6 +38,7 @@ function out = acsPlanVelcroAnchors(skinOrReport, varargin)
 %   velcroLoopOutboardOffsetMm: shift loop center outside cap edge [5]
 %   velcroLoopAttachLengthMm : inboard fusion pad length [9]
 %   velcroLoopAttachWidthMm  : inboard fusion pad width [[] = outer width]
+%   velcroLoopAttachEmbedMm  : extra inward pad overlap into cap rails [3]
 %   verbose                : print progress [true]
 
     if nargin < 1
@@ -89,10 +90,10 @@ function out = acsPlanVelcroAnchors(skinOrReport, varargin)
     accepted = true;
     if openGui
         [proposal, accepted, fig] = velcroAnchorGui(TRskin, TRanchor, ...
-            proposal, siteMarkers, opts);
+            proposal, siteMarkers, earExclusions, opts);
     end
     if ~accepted
-        if isgraphics(fig)
+        if isValidFigureHandle(fig)
             delete(fig);
         end
         error('acsPlanVelcroAnchors:Canceled', ...
@@ -112,19 +113,21 @@ function out = acsPlanVelcroAnchors(skinOrReport, varargin)
     qcFile = '';
     if opts.saveFigures
         qcFile = replaceExtension(opts.outputFile, '_qc.png');
-        if ~isgraphics(fig)
+        if ~isValidFigureHandle(fig)
             fig = makeQcFigure(TRskin, TRanchor, out, siteMarkers, opts, 'off');
         end
-        saveQcFigure(fig, qcFile);
-        out.qcFile = qcFile;
+        didSaveQc = saveQcFigure(fig, qcFile);
+        if didSaveQc
+            out.qcFile = qcFile;
+        end
         outForSave = rmfieldIfPresent(out, {'figure'});
         velcroAnchors = outForSave; %#ok<NASGU>
         save(opts.outputFile, 'outForSave', 'velcroAnchors', '-v7.3');
     end
 
-    if opts.showFigures && isgraphics(fig)
+    if opts.showFigures && isValidFigureHandle(fig)
         out.figure = fig;
-    elseif isgraphics(fig)
+    elseif isValidFigureHandle(fig)
         delete(fig);
     end
 
@@ -155,6 +158,7 @@ function opts = parseInputs(varargin)
     addParameter(p, 'velcroLoopAttachLengthMm', 9, @isNonnegativeScalar);
     addParameter(p, 'velcroLoopAttachWidthMm', [], ...
         @(x) isempty(x) || isPositiveScalar(x));
+    addParameter(p, 'velcroLoopAttachEmbedMm', 3, @isNonnegativeScalar);
     addParameter(p, 'verbose', true, @isBoolLike);
     parse(p, varargin{:});
 
@@ -182,6 +186,7 @@ function opts = parseInputs(varargin)
     else
         opts.velcroLoopAttachWidthMm = double(opts.velcroLoopAttachWidthMm);
     end
+    opts.velcroLoopAttachEmbedMm = double(opts.velcroLoopAttachEmbedMm);
     opts.verbose = logical(opts.verbose);
 end
 
@@ -243,6 +248,7 @@ function geom = velcroGeometryFromOptions(opts)
         'outboardOffsetMm', opts.velcroLoopOutboardOffsetMm, ...
         'attachLengthMm', opts.velcroLoopAttachLengthMm, ...
         'attachWidthMm', opts.velcroLoopAttachWidthMm, ...
+        'attachEmbedMm', opts.velcroLoopAttachEmbedMm, ...
         'floorAtBed', true);
     if geom.outerLengthMm <= 2 * geom.frameWidthMm || ...
             geom.outerWidthMm <= 2 * geom.frameWidthMm
@@ -825,7 +831,7 @@ function tf = shouldOpenGui(outputFile, opts, existingMatches)
 end
 
 function [plan, accepted, fig] = velcroAnchorGui(TRskin, TRanchor, plan, ...
-        siteMarkers, opts)
+        siteMarkers, earExclusions, opts)
     V = double(TRskin.Points);
     Vanchor = double(TRanchor.Points);
     Fdisp = displayFaces(double(TRskin.ConnectivityList), opts.displayMaxFaces);
@@ -833,7 +839,8 @@ function [plan, accepted, fig] = velcroAnchorGui(TRskin, TRanchor, plan, ...
     accepted = false;
     finalPlan = plan;
     state = struct('plan', plan, 'active', 1, ...
-        'showLabels', true, 'showOutlines', true, 'showElectrodes', true);
+        'showLabels', true, 'showOutlines', true, ...
+        'showElectrodes', true, 'pickMode', false);
 
     fig = figure('Name', 'CapMaker Velcro anchor planner', ...
         'NumberTitle', 'off', 'Color', 'w', ...
@@ -863,58 +870,82 @@ function [plan, accepted, fig] = velcroAnchorGui(TRskin, TRanchor, plan, ...
     lighting(ax, 'flat');
     rotate3d(fig, 'on');
     title(ax, 'Velcro attachment anchors', 'Interpreter', 'none');
-    fitCameraToMesh(ax, [V; Vanchor]);
+    set(ax, 'ButtonDownFcn', @onMouseDown);
+    set(ax, 'HitTest', 'on', 'PickableParts', 'all');
+    fitCameraToMesh(ax, [V; Vanchor; siteMarkers.pointsMm]);
 
     popup = uicontrol(fig, 'Style', 'popupmenu', 'Units', 'normalized', ...
-        'Position', [0.795 0.86 0.185 0.05], ...
+        'Position', [0.795 0.90 0.185 0.045], ...
         'String', state.plan.names, 'Callback', @onPopup);
     status = uicontrol(fig, 'Style', 'text', 'Units', 'normalized', ...
-        'Position', [0.795 0.68 0.185 0.16], 'BackgroundColor', 'w', ...
-        'HorizontalAlignment', 'left', 'FontSize', 9);
+        'Position', [0.795 0.75 0.185 0.13], 'BackgroundColor', 'w', ...
+        'HorizontalAlignment', 'left', 'FontSize', 8.5);
     uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
-        'Position', [0.795 0.61 0.087 0.05], 'String', 'Previous', ...
+        'Position', [0.795 0.69 0.087 0.045], 'String', 'Previous', ...
         'Callback', @onPrevious);
     uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
-        'Position', [0.893 0.61 0.087 0.05], 'String', 'Next', ...
+        'Position', [0.893 0.69 0.087 0.045], 'String', 'Next', ...
         'Callback', @onNext);
     uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
-        'Position', [0.795 0.55 0.087 0.05], 'String', 'Rotate -5', ...
+        'Position', [0.795 0.635 0.087 0.045], 'String', 'Rotate -5', ...
         'Callback', @(varargin) rotateActive(-5));
     uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
-        'Position', [0.893 0.55 0.087 0.05], 'String', 'Rotate +5', ...
+        'Position', [0.893 0.635 0.087 0.045], 'String', 'Rotate +5', ...
         'Callback', @(varargin) rotateActive(5));
+    uicontrol(fig, 'Style', 'text', 'Units', 'normalized', ...
+        'Position', [0.795 0.590 0.090 0.030], 'String', 'Nudge mm', ...
+        'BackgroundColor', 'w', 'HorizontalAlignment', 'left', 'FontSize', 8);
+    nudgeStepEdit = uicontrol(fig, 'Style', 'edit', 'Units', 'normalized', ...
+        'Position', [0.893 0.587 0.087 0.035], 'String', '1.5', ...
+        'BackgroundColor', 'w');
+    uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
+        'Position', [0.795 0.535 0.087 0.045], 'String', 'Medial', ...
+        'Callback', @(varargin) nudgeActive('medial'));
+    uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
+        'Position', [0.893 0.535 0.087 0.045], 'String', 'Lateral', ...
+        'Callback', @(varargin) nudgeActive('lateral'));
+    uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
+        'Position', [0.795 0.485 0.087 0.045], 'String', 'Caudal', ...
+        'Callback', @(varargin) nudgeActive('caudal'));
+    uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
+        'Position', [0.893 0.485 0.087 0.045], 'String', 'Rostral', ...
+        'Callback', @(varargin) nudgeActive('rostral'));
+    pickModeBox = uicontrol(fig, 'Style', 'checkbox', 'Units', 'normalized', ...
+        'Position', [0.795 0.440 0.185 0.035], 'String', 'Pick mode', ...
+        'BackgroundColor', 'w', 'Value', state.pickMode, ...
+        'Callback', @onPickMode);
     uicontrol(fig, 'Style', 'checkbox', 'Units', 'normalized', ...
-        'Position', [0.795 0.49 0.185 0.04], 'String', 'Show outlines', ...
+        'Position', [0.795 0.400 0.185 0.035], 'String', 'Show outlines', ...
         'BackgroundColor', 'w', 'Value', state.showOutlines, ...
         'Callback', @onShowOutlines);
     uicontrol(fig, 'Style', 'checkbox', 'Units', 'normalized', ...
-        'Position', [0.795 0.45 0.185 0.04], 'String', 'Show labels', ...
+        'Position', [0.795 0.365 0.185 0.035], 'String', 'Show labels', ...
         'BackgroundColor', 'w', 'Value', state.showLabels, ...
         'Callback', @onShowLabels);
     uicontrol(fig, 'Style', 'checkbox', 'Units', 'normalized', ...
-        'Position', [0.795 0.41 0.185 0.04], 'String', 'Show electrodes', ...
+        'Position', [0.795 0.330 0.185 0.035], 'String', 'Show electrodes', ...
         'BackgroundColor', 'w', 'Value', state.showElectrodes, ...
         'Callback', @onShowElectrodes);
     uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
-        'Position', [0.795 0.37 0.185 0.06], 'String', 'Reset auto', ...
+        'Position', [0.795 0.275 0.185 0.050], 'String', 'Reset auto', ...
         'Callback', @onResetAuto);
     uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
-        'Position', [0.795 0.27 0.185 0.07], 'String', 'Done', ...
+        'Position', [0.795 0.190 0.185 0.060], 'String', 'Done', ...
         'Callback', @onDone);
     uicontrol(fig, 'Style', 'pushbutton', 'Units', 'normalized', ...
-        'Position', [0.795 0.18 0.185 0.07], 'String', 'Cancel', ...
+        'Position', [0.795 0.120 0.185 0.055], 'String', 'Cancel', ...
         'Callback', @onCancel);
-    helpText = sprintf(['Shift-click: move active anchor\n', ...
+    helpText = sprintf(['Pick mode: click rail vertex\n', ...
+        'Nudge buttons snap to rails\n', ...
         '[/]: rotate active loop 5 deg\n', ...
-        '1-6: choose | n/p: next/previous\n', ...
-        'x/y/z: views | r: refit view\n', ...
-        'd/Enter: done | Esc: cancel']);
+        '1-6/n/p/r work if focused']);
     uicontrol(fig, 'Style', 'text', 'Units', 'normalized', ...
-        'Position', [0.795 0.02 0.185 0.145], 'BackgroundColor', 'w', ...
+        'Position', [0.795 0.015 0.185 0.090], 'BackgroundColor', 'w', ...
         'HorizontalAlignment', 'left', 'FontSize', 7.5, 'String', helpText);
 
     set(fig, 'WindowButtonDownFcn', @onMouseDown);
     set(fig, 'WindowKeyPressFcn', @onKeyPress);
+    set(fig, 'KeyPressFcn', @onKeyPress);
     refresh();
     fitCameraToMesh(ax, displayPoints());
     uiwait(fig);
@@ -960,14 +991,24 @@ function [plan, accepted, fig] = velcroAnchorGui(TRskin, TRanchor, plan, ...
     end
 
     function onMouseDown(~, event)
-        if ~hasModifier(event, 'shift', fig)
+        if ~isAxesHit(fig, ax)
             return;
         end
-        disableToolbarModes(fig);
+        if state.pickMode
+            disableToolbarModes(fig);
+        elseif ~hasModifier(event, 'shift', fig)
+            return;
+        else
+            disableToolbarModes(fig);
+        end
         idx = nearestVisibleVertexFromClick(ax, Vanchor, opts.pickRadiusMm);
         if isempty(idx) || ~isfinite(idx)
             return;
         end
+        moveActiveToAnchorVertex(idx);
+    end
+
+    function moveActiveToAnchorVertex(idx)
         state.plan.anchorsMm(state.active, :) = Vanchor(idx, :);
         state.plan.anchors = state.plan.anchorsMm;
         state.plan = normalizeAnchorPlan(state.plan, TRskin, opts);
@@ -1002,6 +1043,18 @@ function [plan, accepted, fig] = velcroAnchorGui(TRskin, TRanchor, plan, ...
                 fitCameraToMesh(ax, displayPoints());
             case {'x', 'y', 'z'}
                 setNamedView(ax, displayPoints(), key);
+            case 'leftarrow'
+                nudgeActive('xminus');
+                return;
+            case 'rightarrow'
+                nudgeActive('xplus');
+                return;
+            case 'uparrow'
+                nudgeActive('rostral');
+                return;
+            case 'downarrow'
+                nudgeActive('caudal');
+                return;
             case {'d', 'return', 'enter'}
                 onDone();
                 return;
@@ -1012,6 +1065,40 @@ function [plan, accepted, fig] = velcroAnchorGui(TRskin, TRanchor, plan, ...
         refresh();
     end
 
+    function nudgeActive(directionName)
+        stepMm = currentNudgeStepMm();
+        p = state.plan.anchorsMm(state.active, :);
+        sideSign = signWithFallback(p(1) - median(Vanchor(:, 1)));
+        switch lower(char(directionName))
+            case 'lateral'
+                dir = [sideSign 0 0];
+            case 'medial'
+                dir = [-sideSign 0 0];
+            case 'rostral'
+                dir = [0 1 0];
+            case 'caudal'
+                dir = [0 -1 0];
+            case 'xplus'
+                dir = [1 0 0];
+            case 'xminus'
+                dir = [-1 0 0];
+            otherwise
+                return;
+        end
+        idx = nearestNudgeVertex(Vanchor, p, dir, stepMm);
+        if ~isempty(idx) && isfinite(idx)
+            moveActiveToAnchorVertex(idx);
+        end
+    end
+
+    function stepMm = currentNudgeStepMm()
+        stepMm = str2double(get(nudgeStepEdit, 'String'));
+        if ~isfinite(stepMm) || stepMm <= 0
+            stepMm = 1.5;
+            set(nudgeStepEdit, 'String', sprintf('%.1f', stepMm));
+        end
+    end
+
     function rotateActive(deltaDeg)
         iActive = state.active;
         state.plan.outDirs(iActive, :) = rotateVectorAboutAxis( ...
@@ -1019,6 +1106,27 @@ function [plan, accepted, fig] = velcroAnchorGui(TRskin, TRanchor, plan, ...
             state.plan.normals(iActive, :), deltaDeg);
         state.plan = normalizeAnchorPlan(state.plan, TRskin, opts);
         refresh();
+    end
+
+    function onPickMode(src, ~)
+        setPickMode(get(src, 'Value') > 0);
+    end
+
+    function setPickMode(tf)
+        state.pickMode = logical(tf);
+        if isgraphics(pickModeBox)
+            set(pickModeBox, 'Value', state.pickMode);
+        end
+        if state.pickMode
+            disableToolbarModes(fig);
+            set(fig, 'Pointer', 'crosshair');
+        else
+            set(fig, 'Pointer', 'arrow');
+            try
+                rotate3d(fig, 'on');
+            catch
+            end
+        end
     end
 
     function onPopup(~, ~)
@@ -1063,7 +1171,7 @@ function [plan, accepted, fig] = velcroAnchorGui(TRskin, TRanchor, plan, ...
         accepted = true;
         finalPlan = state.plan;
         finalPlan.cameraState = captureCameraState(ax);
-        if isgraphics(fig)
+        if isValidFigureHandle(fig)
             uiresume(fig);
         end
     end
@@ -1071,7 +1179,7 @@ function [plan, accepted, fig] = velcroAnchorGui(TRskin, TRanchor, plan, ...
     function onCancel(varargin) %#ok<INUSD>
         accepted = false;
         finalPlan = state.plan;
-        if isgraphics(fig)
+        if isValidFigureHandle(fig)
             uiresume(fig);
         end
     end
@@ -1215,11 +1323,22 @@ function textOut = statusText(plan, active)
         'Anchor: [%.1f %.1f %.1f] mm\n', ...
         'Loop outer: %.1f x %.1f mm\n', ...
         'Frame/thickness: %.1f / %.1f mm\n', ...
-        'Attach pad: %.1f x %.1f mm'], ...
+        'Attach pad: %.1f x %.1f mm\n', ...
+        'Pad embed: %.1f mm'], ...
         plan.names{active}, p(1), p(2), p(3), ...
         geom.outerLengthMm, geom.outerWidthMm, ...
         geom.frameWidthMm, geom.thicknessMm, ...
-        geom.attachLengthMm, geom.attachWidthMm);
+        geom.attachLengthMm, geom.attachWidthMm, ...
+        getStructScalar(geom, 'attachEmbedMm', 0));
+end
+
+function value = getStructScalar(S, fieldName, defaultValue)
+    value = defaultValue;
+    if isstruct(S) && isfield(S, fieldName) && ~isempty(S.(fieldName)) && ...
+            isnumeric(S.(fieldName)) && isscalar(S.(fieldName)) && ...
+            isfinite(S.(fieldName))
+        value = double(S.(fieldName));
+    end
 end
 
 function fig = makeQcFigure(TRskin, TRanchor, out, siteMarkers, opts, visible)
@@ -1288,6 +1407,45 @@ function idx = nearestVisibleVertexFromClick(ax, V, pickRadiusMm)
     score = nearT + 0.25 * pickRadiusMm * nearD ./ max(pickRadiusMm, eps);
     [~, localIdx] = min(score);
     idx = candidates(localIdx);
+end
+
+function idx = nearestNudgeVertex(V, point, direction, stepMm)
+    idx = [];
+    if isempty(V) || isempty(point) || isempty(direction)
+        return;
+    end
+    direction = normalizeRow(direction);
+    if norm(direction) <= eps
+        return;
+    end
+    W = bsxfun(@minus, V, point);
+    forwardMm = W * direction(:);
+    lateral = W - forwardMm .* direction;
+    lateralMm = sqrt(sum(lateral .^ 2, 2));
+    maxForwardMm = max(3 * stepMm, stepMm + 8);
+    candidates = find(forwardMm > 0.15 * stepMm & forwardMm <= maxForwardMm);
+    if ~isempty(candidates)
+        score = abs(forwardMm(candidates) - stepMm) + 0.35 * lateralMm(candidates);
+        [~, localIdx] = min(score);
+        idx = candidates(localIdx);
+        return;
+    end
+    target = point + stepMm * direction;
+    d2 = sum((V - target) .^ 2, 2);
+    [~, idx] = min(d2);
+end
+
+function tf = isAxesHit(fig, ax)
+    tf = true;
+    try
+        hitObj = hittest(fig);
+        if isempty(hitObj) || ~isgraphics(hitObj)
+            return;
+        end
+        tf = isequal(hitObj, ax) || isequal(ancestor(hitObj, 'axes'), ax);
+    catch
+        tf = true;
+    end
 end
 
 function [origin, direction] = clickRay(ax)
@@ -1703,12 +1861,41 @@ function value = jsonReady(value)
     end
 end
 
-function saveQcFigure(fig, fileName)
+function didSave = saveQcFigure(fig, fileName)
+    didSave = false;
+    if ~isValidFigureHandle(fig)
+        warning('acsPlanVelcroAnchors:InvalidQcFigure', ...
+            'Could not save Velcro anchor QC figure because the figure handle is invalid.');
+        return;
+    end
     ensureDir(fileparts(fileName));
     try
         exportgraphics(fig, fileName, 'Resolution', 200);
+        didSave = true;
+    catch ME
+        if ~isValidFigureHandle(fig)
+            warning('acsPlanVelcroAnchors:InvalidQcFigureAfterExport', ...
+                ['Could not save Velcro anchor QC figure because the ', ...
+                 'figure handle became invalid (%s).'], ME.message);
+            return;
+        end
+        try
+            saveas(fig, fileName);
+            didSave = true;
+        catch ME2
+            warning('acsPlanVelcroAnchors:QcFigureSaveFailed', ...
+                'Could not save Velcro anchor QC figure %s (%s).', ...
+                fileName, ME2.message);
+        end
+    end
+end
+
+function tf = isValidFigureHandle(fig)
+    tf = false;
+    try
+        tf = ~isempty(fig) && isscalar(fig) && isgraphics(fig, 'figure');
     catch
-        saveas(fig, fileName);
+        tf = false;
     end
 end
 

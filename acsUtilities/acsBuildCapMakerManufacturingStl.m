@@ -62,6 +62,7 @@ function out = acsBuildCapMakerManufacturingStl(layoutIn, varargin)
 %   velcroLoopOutboardOffsetMm : shift loop center outside cap edge [5]
 %   velcroLoopAttachLengthMm : inboard fusion pad length [9]
 %   velcroLoopAttachWidthMm  : inboard fusion pad width [[] = outer width]
+%   velcroLoopAttachEmbedMm  : extra inward pad overlap into cap rails [3]
 %   holderSupportMode     : 'nearestRail' or 'none' ['nearestRail']
 %   holderSupportCount    : support struts per holder [2]
 %   holderSupportMinAngleDeg : desired support angle spread [90]
@@ -77,6 +78,7 @@ function out = acsBuildCapMakerManufacturingStl(layoutIn, varargin)
 %   carveCloseVox         : post-hole-carve close radius [0]
 %   preserveFusedTpeOccupancy : preserve fused voxel occupancy through carving [true]
 %   zBedMm                : printer bed plane [0]
+%   tpeAssemblyBedClearanceMm : lift complete TPE assembly so Velcro anchors clear zBed [[] = auto]
 %   holderBedClearancePolicy : warn/error/ignore for bed-clipped holders ['warn']
 %   holderMinBedClearanceMm  : minimum holder clearance above zBed [1]
 %   strapElectrodePolicy  : warn/error/ignore for holder/strap overlap ['warn']
@@ -108,6 +110,7 @@ function out = acsBuildCapMakerManufacturingStl(layoutIn, varargin)
     [TRskinFull, skinSource] = loadSkinMesh(layout, opts);
     opts.skinSourceCacheFile = skinSource.cacheFile;
     [names, targetsMm, roleLabels] = selectedLayoutSites(layout, opts);
+    modelTargetsMm = targetsMm;
 
     opts = resolveOutputPaths(layout, skinSource, opts);
     ensureDir(opts.outputDir);
@@ -135,7 +138,6 @@ function out = acsBuildCapMakerManufacturingStl(layoutIn, varargin)
         'NormalMode', opts.holderNormalMode, ...
         'SmoothNormalRadiusMm', opts.holderSmoothNormalRadiusMm, ...
         'NormalDeviationThresholdDeg', opts.holderNormalDeviationThresholdDeg);
-    checkHolderBedClearance(holderInfo, names, opts);
     logElapsed(opts, 'Placed electrode holders', stageTimer);
 
     stageTimer = tic;
@@ -189,11 +191,18 @@ function out = acsBuildCapMakerManufacturingStl(layoutIn, varargin)
     TRrails = concatTriangulations({TRrailsBase, TRholderSupports});
     logElapsed(opts, 'Added holder support rails', stageTimer);
 
+    [TRholders, TRrails, TRholderSupports, holeTops, holeBottoms, ...
+        holderInfo, holderSurfaceMm, targetsMm, strap, velcroAnchors, ...
+        tpeAssemblyBedLift] = applyTpeAssemblyBedLift(TRholders, TRrails, ...
+        TRholderSupports, holeTops, holeBottoms, holderInfo, holderSurfaceMm, ...
+        targetsMm, strap, velcroAnchors, opts);
+    checkHolderBedClearance(holderInfo, names, opts);
+
     if opts.preflightOnly
         out = makePreflightOutput(layout, TRskin, TRrailSkin, TRholders, TRrails, ...
-            targetsMm, names, roleLabels, earExclusions, implantExclusions, ...
+            targetsMm, modelTargetsMm, names, roleLabels, earExclusions, implantExclusions, ...
             strap, velcroAnchors, TRholderSupports, holderInfo, ...
-            manufacturingSurfaceInfo, railBuildInfo, opts, totalTimer);
+            manufacturingSurfaceInfo, railBuildInfo, tpeAssemblyBedLift, opts, totalTimer);
         return;
     end
 
@@ -276,6 +285,7 @@ function out = acsBuildCapMakerManufacturingStl(layoutIn, varargin)
     meshInfo.plaClosure = checkMeshClosed(TRplaFinal);
     meshInfo.tpeComponents = occupancyComponentStats(occTpeCrop.occ);
     meshInfo.plaComponents = occupancyComponentStats(occPlaCrop.occ);
+    meshInfo.tpeAssemblyBedLift = tpeAssemblyBedLift;
 
     qcFile = '';
     fig = [];
@@ -314,6 +324,8 @@ function out = acsBuildCapMakerManufacturingStl(layoutIn, varargin)
     out.sourceTesNames = tesInfo.sourceTesNames;
     out.tesCurrentsMa = tesInfo.tesCurrentsMa;
     out.layoutCoordinatesMm = targetsMm;
+    out.printLayoutCoordinatesMm = targetsMm;
+    out.modelLayoutCoordinatesMm = modelTargetsMm;
     out.holderSurfaceCoordinatesMm = holderSurfacePointsFromInfo(holderInfo, targetsMm);
     out.holderInfo = holderInfo;
     out.skinSource = skinSource;
@@ -322,6 +334,7 @@ function out = acsBuildCapMakerManufacturingStl(layoutIn, varargin)
     out.implantExclusions = compactImplantExclusions(implantExclusions);
     out.strap = stripStrapFns(strap);
     out.velcroAnchors = stripOccFns(velcroAnchors);
+    out.tpeAssemblyBedLift = tpeAssemblyBedLift;
     out.holderSupports = meshStats(TRholderSupports);
     out.railBuildInfo = railBuildInfo;
     out.options = opts;
@@ -436,6 +449,7 @@ function opts = parseInputs(varargin)
     addParameter(p, 'velcroLoopOutboardOffsetMm', 5, @isNonnegativeScalar);
     addParameter(p, 'velcroLoopAttachLengthMm', 9, @isNonnegativeScalar);
     addParameter(p, 'velcroLoopAttachWidthMm', [], @(x) isempty(x) || isPositiveScalar(x));
+    addParameter(p, 'velcroLoopAttachEmbedMm', 3, @isNonnegativeScalar);
     addParameter(p, 'velcroLoopFloorAtBed', true, @isBoolLike);
     addParameter(p, 'holderSupportMode', 'nearestRail', @(x) ischar(x) || isstring(x));
     addParameter(p, 'holderSupportCount', 2, ...
@@ -465,6 +479,8 @@ function opts = parseInputs(varargin)
     addParameter(p, 'preserveFusedTpeOccupancy', true, @isBoolLike);
     addParameter(p, 'padVox', 8, @isPositiveScalar);
     addParameter(p, 'zBedMm', 0, @(x) isnumeric(x) && isscalar(x) && isfinite(x));
+    addParameter(p, 'tpeAssemblyBedClearanceMm', [], ...
+        @(x) isempty(x) || isNonnegativeScalar(x));
     addParameter(p, 'holderBedClearancePolicy', 'warn', ...
         @(x) ischar(x) || isstring(x));
     addParameter(p, 'holderMinBedClearanceMm', 1, @isNonnegativeScalar);
@@ -595,6 +611,7 @@ function opts = parseInputs(varargin)
     else
         opts.velcroLoopAttachWidthMm = double(opts.velcroLoopAttachWidthMm);
     end
+    opts.velcroLoopAttachEmbedMm = double(opts.velcroLoopAttachEmbedMm);
     opts.velcroLoopFloorAtBed = logical(opts.velcroLoopFloorAtBed);
     opts.holderSupportMode = normalizeHolderSupportMode(opts.holderSupportMode);
     opts.holderSupportCount = round(double(opts.holderSupportCount));
@@ -643,6 +660,15 @@ function opts = parseInputs(varargin)
     opts.preserveFusedTpeOccupancy = logical(opts.preserveFusedTpeOccupancy);
     opts.padVox = round(double(opts.padVox));
     opts.zBedMm = double(opts.zBedMm);
+    if isempty(opts.tpeAssemblyBedClearanceMm)
+        if ~strcmp(opts.velcroAnchorMode, 'none')
+            opts.tpeAssemblyBedClearanceMm = 0.25;
+        else
+            opts.tpeAssemblyBedClearanceMm = 0;
+        end
+    else
+        opts.tpeAssemblyBedClearanceMm = double(opts.tpeAssemblyBedClearanceMm);
+    end
     opts.holderBedClearancePolicy = normalizeImplantElectrodePolicy( ...
         opts.holderBedClearancePolicy);
     opts.holderMinBedClearanceMm = double(opts.holderMinBedClearanceMm);
@@ -1166,9 +1192,10 @@ function TRout = decimateTriangulation(TRin, maxFaces, opts, label)
 end
 
 function out = makePreflightOutput(layout, TRskin, TRrailSkin, TRholders, TRrails, ...
-        targetsMm, names, roleLabels, earExclusions, implantExclusions, strap, ...
-        velcroAnchors, TRholderSupports, holderInfo, manufacturingSurfaceInfo, ...
-        railBuildInfo, opts, totalTimer)
+        targetsMm, modelTargetsMm, names, roleLabels, earExclusions, ...
+        implantExclusions, strap, velcroAnchors, TRholderSupports, ...
+        holderInfo, manufacturingSurfaceInfo, railBuildInfo, ...
+        tpeAssemblyBedLift, opts, totalTimer)
     meshInfo = struct();
     meshInfo.skin = meshStats(TRskin);
     meshInfo.railSource = meshStats(TRrailSkin);
@@ -1178,6 +1205,7 @@ function out = makePreflightOutput(layout, TRskin, TRrailSkin, TRholders, TRrail
     meshInfo.railBuild = railBuildInfo;
     meshInfo.holderClosure = checkMeshClosed(TRholders);
     meshInfo.railClosure = checkMeshClosed(TRrails);
+    meshInfo.tpeAssemblyBedLift = tpeAssemblyBedLift;
 
     qcFile = '';
     fig = [];
@@ -1216,6 +1244,8 @@ function out = makePreflightOutput(layout, TRskin, TRrailSkin, TRholders, TRrail
     out.sourceTesNames = tesInfo.sourceTesNames;
     out.tesCurrentsMa = tesInfo.tesCurrentsMa;
     out.layoutCoordinatesMm = targetsMm;
+    out.printLayoutCoordinatesMm = targetsMm;
+    out.modelLayoutCoordinatesMm = modelTargetsMm;
     out.holderSurfaceCoordinatesMm = holderSurfacePointsFromInfo(holderInfo, targetsMm);
     out.holderInfo = holderInfo;
     out.manufacturingSurface = manufacturingSurfaceInfo;
@@ -1223,6 +1253,7 @@ function out = makePreflightOutput(layout, TRskin, TRrailSkin, TRholders, TRrail
     out.implantExclusions = compactImplantExclusions(implantExclusions);
     out.strap = stripStrapFns(strap);
     out.velcroAnchors = stripOccFns(velcroAnchors);
+    out.tpeAssemblyBedLift = tpeAssemblyBedLift;
     out.holderSupports = meshStats(TRholderSupports);
     out.railBuildInfo = railBuildInfo;
     out.options = opts;
@@ -1287,6 +1318,177 @@ function checkHolderSnapDistance(holderSurfaceMm, targetsMm, names, opts)
         warning('acsBuildCapMakerManufacturingStl:HolderSnapDistance', ...
             'Electrode holder placement moved layout sites by more than %.3g mm: %s', ...
             opts.holderSnapWarnDistanceMm, txt);
+    end
+end
+
+function [TRholders, TRrails, TRholderSupports, holeTops, holeBottoms, ...
+        holderInfo, holderSurfaceMm, targetsMm, strap, velcroAnchors, info] = ...
+        applyTpeAssemblyBedLift(TRholders, TRrails, TRholderSupports, ...
+        holeTops, holeBottoms, holderInfo, holderSurfaceMm, targetsMm, ...
+        strap, velcroAnchors, opts)
+    info = struct( ...
+        'enabled', opts.tpeAssemblyBedClearanceMm > 0 || ...
+            hasVelcroAnchorGeometry(velcroAnchors), ...
+        'zBedMm', opts.zBedMm, ...
+        'requestedClearanceMm', opts.tpeAssemblyBedClearanceMm, ...
+        'triggerSource', 'none', ...
+        'minTriggerZBeforeMm', NaN, ...
+        'minTriggerZAfterMm', NaN, ...
+        'zShiftMm', 0);
+    [P, triggerSource] = tpeAssemblyBedLiftTriggerPoints( ...
+        TRholders, TRrails, TRholderSupports, strap, velcroAnchors);
+    info.triggerSource = triggerSource;
+    if isempty(P)
+        return;
+    end
+    minZ = min(P(:, 3));
+    info.minTriggerZBeforeMm = minZ;
+    clearance = max(0, double(opts.tpeAssemblyBedClearanceMm));
+    dz = max(0, opts.zBedMm + clearance - minZ);
+    if dz <= eps
+        info.minTriggerZAfterMm = minZ;
+        return;
+    end
+
+    delta = [0 0 dz];
+    TRholders = translateTriangulation(TRholders, delta);
+    TRrails = translateTriangulation(TRrails, delta);
+    TRholderSupports = translateTriangulation(TRholderSupports, delta);
+    holeTops = translatePointArray(holeTops, delta);
+    holeBottoms = translatePointArray(holeBottoms, delta);
+    holderInfo = translateHolderInfo(holderInfo, delta);
+    holderSurfaceMm = translatePointArray(holderSurfaceMm, delta);
+    targetsMm = translatePointArray(targetsMm, delta);
+    strap = translateOccupancyItem(strap, delta);
+    velcroAnchors = translateOccupancyItem(velcroAnchors, delta);
+
+    info.zShiftMm = dz;
+    info.minTriggerZAfterMm = minZ + dz;
+    logMsg(opts, ...
+        ['Lifted complete TPE assembly %.3g mm in +Z so %s clear ', ...
+         'zBed=%.3g mm with %.3g mm requested clearance.'], ...
+        dz, triggerSource, opts.zBedMm, clearance);
+end
+
+function [P, source] = tpeAssemblyBedLiftTriggerPoints( ...
+        TRholders, TRrails, TRholderSupports, strap, velcroAnchors)
+    P = zeros(0, 3);
+    source = 'all TPE components';
+    if hasVelcroAnchorGeometry(velcroAnchors)
+        P = collectPointField(velcroAnchors, 'extraPoints');
+        source = 'Velcro anchors';
+    end
+    if isempty(P)
+        P = [triPoints(TRholders); triPoints(TRrails); ...
+            triPoints(TRholderSupports); collectPointField(strap, 'extraPoints')];
+    end
+    P = P(all(isfinite(P), 2), :);
+end
+
+function tf = hasVelcroAnchorGeometry(velcroAnchors)
+    tf = isstruct(velcroAnchors) && ...
+        ((isfield(velcroAnchors, 'extraPoints') && ...
+        ~isempty(velcroAnchors.extraPoints)) || ...
+        (isfield(velcroAnchors, 'anchors') && ~isempty(velcroAnchors.anchors)) || ...
+        (isfield(velcroAnchors, 'anchorsMm') && ~isempty(velcroAnchors.anchorsMm)));
+end
+
+function P = triPoints(TR)
+    P = zeros(0, 3);
+    if isempty(TR)
+        return;
+    end
+    try
+        if ~isempty(TR.Points)
+            P = double(TR.Points);
+        end
+    catch
+        P = zeros(0, 3);
+    end
+end
+
+function P = collectPointField(S, fieldName)
+    P = zeros(0, 3);
+    if isstruct(S) && isfield(S, fieldName) && isnumeric(S.(fieldName)) && ...
+            size(S.(fieldName), 2) == 3
+        P = double(S.(fieldName));
+    end
+end
+
+function TRout = translateTriangulation(TRin, delta)
+    TRout = TRin;
+    if isempty(TRin)
+        return;
+    end
+    try
+        if isempty(TRin.Points)
+            return;
+        end
+        V = bsxfun(@plus, double(TRin.Points), double(delta(:).'));
+        TRout = triangulation(TRin.ConnectivityList, V);
+    catch
+        TRout = TRin;
+    end
+end
+
+function P = translatePointArray(P, delta)
+    if isempty(P) || ~isnumeric(P) || size(P, 2) ~= 3
+        return;
+    end
+    P = bsxfun(@plus, double(P), double(delta(:).'));
+end
+
+function holderInfo = translateHolderInfo(holderInfo, delta)
+    if isempty(holderInfo) || ~isstruct(holderInfo)
+        return;
+    end
+    pointFields = {'targetMm', 'surfacePointMm', 'holderCenterMm', ...
+        'holeTopMm', 'holeBottomMm'};
+    dz = double(delta(3));
+    for i = 1:numel(holderInfo)
+        for f = 1:numel(pointFields)
+            name = pointFields{f};
+            if isfield(holderInfo(i), name) && isnumeric(holderInfo(i).(name)) && ...
+                    numel(holderInfo(i).(name)) == 3
+                value = holderInfo(i).(name);
+                holderInfo(i).(name) = double(value(:)).' + double(delta(:).');
+            end
+        end
+        if isfield(holderInfo(i), 'minZMm') && isnumeric(holderInfo(i).minZMm) && ...
+                isscalar(holderInfo(i).minZMm)
+            holderInfo(i).minZMm = double(holderInfo(i).minZMm) + dz;
+        end
+        if isfield(holderInfo(i), 'maxZMm') && isnumeric(holderInfo(i).maxZMm) && ...
+                isscalar(holderInfo(i).maxZMm)
+            holderInfo(i).maxZMm = double(holderInfo(i).maxZMm) + dz;
+        end
+    end
+end
+
+function item = translateOccupancyItem(item, delta)
+    if isempty(item) || ~isstruct(item)
+        return;
+    end
+    pointFields = {'anchors', 'anchorsMm', 'extraPoints'};
+    for f = 1:numel(pointFields)
+        name = pointFields{f};
+        if isfield(item, name) && isnumeric(item.(name)) && ...
+                size(item.(name), 2) == 3
+            item.(name) = translatePointArray(item.(name), delta);
+        end
+    end
+    if isfield(item, 'occFns') && ~isempty(item.occFns)
+        fns = item.occFns;
+        if ~iscell(fns)
+            fns = {fns};
+        end
+        shiftedFns = cell(size(fns));
+        d = double(delta(:).');
+        for i = 1:numel(fns)
+            fn = fns{i};
+            shiftedFns{i} = @(X,Y,Z) fn(X - d(1), Y - d(2), Z - d(3));
+        end
+        item.occFns = shiftedFns;
     end
 end
 
@@ -2590,9 +2792,11 @@ function velcro = makeVelcroAnchorOccupancy(TRskin, TRrails, earExclusions, opts
         outDir = velcro.outDirs(i, :);
         normal = velcro.normals(i, :);
         geom = velcro.params;
+        geomOcc = geom;
+        geomOcc.floorAtBed = false;
         zBed = opts.zBedMm;
         velcro.occFns{end + 1} = @(X,Y,Z) velcroAnchorOccFn( ...
-            X, Y, Z, anchor, outDir, normal, geom, zBed); %#ok<AGROW>
+            X, Y, Z, anchor, outDir, normal, geomOcc, zBed); %#ok<AGROW>
         velcro.extraPoints = [velcro.extraPoints; ...
             velcroAnchorExtentPoints(anchor, outDir, normal, geom)]; %#ok<AGROW>
     end
@@ -2610,6 +2814,7 @@ function geom = velcroGeometryFromOptions(opts)
         'outboardOffsetMm', opts.velcroLoopOutboardOffsetMm, ...
         'attachLengthMm', opts.velcroLoopAttachLengthMm, ...
         'attachWidthMm', opts.velcroLoopAttachWidthMm, ...
+        'attachEmbedMm', opts.velcroLoopAttachEmbedMm, ...
         'floorAtBed', opts.velcroLoopFloorAtBed);
     if geom.outerLengthMm <= 2 * geom.frameWidthMm || ...
             geom.outerWidthMm <= 2 * geom.frameWidthMm
@@ -2645,6 +2850,7 @@ function geom = mergeVelcroGeometry(geom, overrides)
         'outboardOffsetMm', {'outboardOffsetMm', 'velcroLoopOutboardOffsetMm'}
         'attachLengthMm', {'attachLengthMm', 'velcroLoopAttachLengthMm'}
         'attachWidthMm', {'attachWidthMm', 'velcroLoopAttachWidthMm'}
+        'attachEmbedMm', {'attachEmbedMm', 'velcroLoopAttachEmbedMm'}
         'floorAtBed', {'floorAtBed', 'velcroLoopFloorAtBed'}};
     for i = 1:size(aliases, 1)
         target = aliases{i, 1};
@@ -3002,20 +3208,24 @@ function mask = velcroAnchorOccFn(X, Y, Z, anchor, outDir, normal, geom, zBed)
     innerHalfU = (geom.outerLengthMm - 2 * geom.frameWidthMm) / 2;
     innerHalfV = (geom.outerWidthMm - 2 * geom.frameWidthMm) / 2;
     halfT = geom.thicknessMm / 2;
+    attachEmbedMm = getStructScalar(geom, 'attachEmbedMm', 0);
 
     slab = abs(w) <= halfT;
+    attachSlab = w >= (-halfT - attachEmbedMm) & w <= halfT;
     outer = (u ./ outerHalfU) .^ 2 + (v ./ outerHalfV) .^ 2 <= 1;
     inner = (u ./ innerHalfU) .^ 2 + (v ./ innerHalfV) .^ 2 <= 1;
     ring = slab & outer & ~inner;
+    inboardRingEmbed = attachSlab & outer & ~inner & ...
+        v <= (-outerHalfV + geom.frameWidthMm);
 
     attach = false(size(ring));
     if geom.attachLengthMm > 0
-        attach = slab & ...
+        attach = attachSlab & ...
             abs(u) <= geom.attachWidthMm / 2 & ...
             v >= (-outerHalfV - geom.attachLengthMm) & ...
             v <= (-outerHalfV + geom.frameWidthMm);
     end
-    mask = ring | attach;
+    mask = ring | inboardRingEmbed | attach;
     if geom.floorAtBed
         mask = mask & Z >= zBed;
     end
@@ -3041,11 +3251,21 @@ function P = velcroAnchorExtentPoints(anchor, outDir, normal, geom)
     [center, uHat, vHat, nHat] = velcroAnchorFrame(anchor, outDir, normal, geom);
     uVals = [-geom.outerLengthMm/2, geom.outerLengthMm/2];
     vVals = [-geom.outerWidthMm/2 - geom.attachLengthMm, geom.outerWidthMm/2];
-    wVals = [-geom.thicknessMm/2, geom.thicknessMm/2];
+    attachEmbedMm = getStructScalar(geom, 'attachEmbedMm', 0);
+    wVals = [-geom.thicknessMm/2 - attachEmbedMm, geom.thicknessMm/2];
     [U, V, W] = ndgrid(uVals, vVals, wVals);
     P = bsxfun(@plus, center, ...
         U(:) * uHat + V(:) * vHat + W(:) * nHat);
     P = [P; anchor]; %#ok<AGROW>
+end
+
+function value = getStructScalar(S, fieldName, defaultValue)
+    value = defaultValue;
+    if isstruct(S) && isfield(S, fieldName) && ~isempty(S.(fieldName)) && ...
+            isnumeric(S.(fieldName)) && isscalar(S.(fieldName)) && ...
+            isfinite(S.(fieldName))
+        value = double(S.(fieldName));
+    end
 end
 
 function q = localPercentile(values, pct)
