@@ -54,7 +54,7 @@ cfg = nhpulseExampleConfig('syntheticFast', ...
 9. Build the initial tES candidate layout.
 10. Grow tES candidates with dummy or ROAST lead fields.
 11. Interleave EEG electrodes around the optimized tES montage.
-12. Export final dual-material PLA/TPE cap STLs.
+12. Export final dual-material PLA/TPE cap STLs with Velcro attachment loops.
 13. Verify generated outputs with `nhpulseVerifySyntheticWalkthrough`.
 
 ## What Each Step Is Trying To Accomplish
@@ -188,16 +188,17 @@ and the source electrode names should match the sparse optimization result.
 
 ### 12 - Dual-Material Manufacturing STL
 
-Goal: convert the layout into printable geometry: TPE/rubber rails and
-electrode holders, plus PLA support/underfill for printing. This is the stage
-where a cap becomes a slicer-ready object.
+Goal: convert the layout into printable geometry: TPE/rubber rails, electrode
+holders, and Velcro-loop strap anchors, plus PLA support/underfill for
+printing. This is the stage where a cap becomes a slicer-ready object.
 
 Check: electrode holders should be clear through to the scalp, rails should be
-connected, keepouts should be respected, and no holders should be clipped by the
-printer bed or placed on the underside of the cap. For workflows that use
-external hook-and-loop straps, users can run `acsPlanVelcroAnchors` before this
-step and export the final cap with `strapMode='none'` plus
-`velcroAnchorMode='file'`.
+connected, keepouts should be respected, no holders should be clipped by the
+printer bed or placed on the underside of the cap, and Velcro-loop slots should
+remain open. The recommended workflow runs `acsPlanVelcroAnchors` before this
+step and exports the final cap with `strapMode='none'` plus
+`velcroAnchorMode='file'`. Printed chin straps are retained as a legacy option
+for workflows that explicitly need them.
 
 ### 13 - Verification
 

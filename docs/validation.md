@@ -40,6 +40,7 @@ The verifier checks expected product classes:
 - target voxel selection,
 - fit-check STL,
 - tES candidate and tES+EEG layout reports,
+- Velcro anchor plan,
 - final TPE/PLA manufacturing STLs,
 - optional real ROAST lead-field result.
 
@@ -51,6 +52,7 @@ For a reviewer-oriented run, inspect:
 - ear/painted exclusion GUI or saved exclusion report,
 - headpost placement/keepout QC,
 - tES growth and EEG layout QC figures,
+- Velcro anchor placement QC,
 - final manufacturing QC figure,
 - exported STL files in slicer or mesh-viewer software.
 

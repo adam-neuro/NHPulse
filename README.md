@@ -115,8 +115,9 @@ verification = nhpulseVerifySyntheticWalkthrough();
 - Sparse tES optimization and channel-count sweep utilities.
 - EEG layout interleaving that respects tES contacts and manufacturing
   exclusions.
-- capMaker manufacturing helpers for electrode holders, rails, chin straps,
-  fit-check scaffolds, STL export, and QC/inspection figures.
+- capMaker manufacturing helpers for electrode holders, rails, recommended
+  Velcro attachment loops, legacy chin straps, fit-check scaffolds, STL export,
+  and QC/inspection figures.
 
 ## Relationship To ROAST
 

@@ -11,7 +11,8 @@ starting point for their own validation.
 The final dual-material cap export produces two coordinated STL files:
 
 - a flexible thermoplastic elastomer (TPE) cap containing the scalp rails,
-  electrode holders, and chin straps,
+  electrode holders, and either reinforced Velcro attachment loops or legacy
+  printed chin straps,
 - a rigid polylactic acid (PLA) support structure that stabilizes the flexible
   cap during printing and is removed after printing.
 
@@ -24,12 +25,14 @@ NHPulse can also export sparse PLA-only fit-check caps. These are faster,
 single-material scaffolds intended to test the overall cap shape before
 committing to a full dual-material print.
 
-Instead of printing integrated chin straps, users can also add reinforced
-Velcro attachment loops around the cap edge. `acsPlanVelcroAnchors` proposes
-six bilateral loop locations, lets the user refine them on the scalp mesh, and
-saves an anchor plan. Pass that plan to the final STL build with
+The currently recommended retention workflow uses reinforced Velcro attachment
+loops around the cap edge instead of integrated printed chin straps.
+`acsPlanVelcroAnchors` proposes six bilateral loop locations, lets the user
+refine them on the scalp mesh, and saves an anchor plan. Pass that plan to the
+final STL build with
 `velcroAnchorMode='file'`, `velcroAnchorFile=velcroPlan.outputFile`, and
-`strapMode='none'` if the printed chin straps should be omitted.
+`strapMode='none'`. Printed chin straps remain available as a legacy option for
+experiments that need them, but they require local validation for durability.
 
 ## Tested Hardware
 
@@ -58,8 +61,8 @@ The exact Cura menu labels can vary by version, but the tested workflow is:
 7. Load the tested NHPulse Cura settings profile, if available.
 8. Slice the merged model.
 9. Inspect the sliced preview layer by layer, with special attention to
-   electrode-holder holes, chin straps, implant keepouts, and low features near
-   the printer bed.
+   electrode-holder holes, Velcro-loop slots or legacy chin straps, implant
+   keepouts, and low features near the printer bed.
 10. Save the G-code to disk.
 11. If using the tested TAZ Pro setup and the startup wipe/home issue applies,
     run the optional G-code patcher.
@@ -106,14 +109,18 @@ Before printing:
 
 - confirm that both extruders are assigned to the intended material,
 - confirm nozzle diameters and filament diameters in the slicer,
+- set the TPE extruder idler tension loose/light enough that the drive gear
+  feeds the flexible filament without chewing it,
 - verify that the TPE cap is not clipped by the bed or by support geometry,
 - check that all electrode-holder bores remain open,
-- check that chin straps are connected and have the expected corrugation, or
-  that Velcro loops are connected and have open slots,
+- check that Velcro loops are connected and have open slots, or that legacy
+  chin straps are connected and have the expected corrugation,
 - clean both nozzles so auto bed leveling can contact the bed correctly,
 - apply the bed preparation used by your local protocol, such as a glue-stick
   layer for the tested TAZ Pro setup,
 - prime both extruders by feeding a small amount of material,
+- re-check the TPE filament after priming; if it shows bite marks or stops
+  feeding, back off the idler tension and trim/re-feed the damaged segment,
 - auto-home the printer before starting the job,
 - keep the unpatched and patched G-code files with the print records.
 
