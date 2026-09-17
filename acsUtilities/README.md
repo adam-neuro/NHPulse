@@ -1044,6 +1044,14 @@ reused only when the same output file is requested, the source mesh fingerprint
 still matches, and `force=false`. Use `editMode='always'` to refine previously
 saved positions without changing the output file.
 
+The final voxel stage automatically carves each loop's open ellipse through
+overlapping rails. Use `velcroSlotClearanceMm` to adjust passage clearance, or
+set `velcroSlotCarve=false` only for legacy/debug output.
+Loop and attachment-pad occupancy lying inside the scalp is also removed before
+fusion, so the rigid pad is flush on the cap interior. This uses localized
+point-in-polyhedron tests rather than voxelizing the complete scalp. Set
+`velcroScalpUndersideCarve=false` only for legacy/debug output.
+
 `holderSupportMode='nearestRail'` adds short support struts from each electrode
 holder to nearby cap rails so the manufacturing mesh does not depend on the
 decimated scalp mesh preserving a convenient edge under every holder. The

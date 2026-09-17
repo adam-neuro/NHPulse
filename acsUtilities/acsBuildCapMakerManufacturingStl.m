@@ -63,6 +63,10 @@ function out = acsBuildCapMakerManufacturingStl(layoutIn, varargin)
 %   velcroLoopAttachLengthMm : inboard fusion pad length [9]
 %   velcroLoopAttachWidthMm  : inboard fusion pad width [[] = outer width]
 %   velcroLoopAttachEmbedMm  : extra inward pad overlap into cap rails [3]
+%   velcroSlotCarve          : clear rail material from loop openings [true]
+%   velcroSlotClearanceMm    : radial clearance around each open slot [0.5]
+%   velcroSlotCarveDepthMm   : total carve depth normal to loop [[] = auto]
+%   velcroScalpUndersideCarve: clip loop/pad material inside scalp [true]
 %   holderSupportMode     : 'nearestRail' or 'none' ['nearestRail']
 %   holderSupportCount    : support struts per holder [2]
 %   holderSupportMinAngleDeg : desired support angle spread [90]
@@ -244,6 +248,11 @@ function out = acsBuildCapMakerManufacturingStl(layoutIn, varargin)
     [~, occTpeCarved] = carvePVA(carveBase, TRholeKeepoutUnion, carveOpts);
     logElapsed(opts, 'Carved TPE keepouts', stageTimer);
 
+    stageTimer = tic;
+    [occTpeCarved, velcroSlotCarveInfo] = carveVelcroSlotsFromOccupancy( ...
+        occTpeCarved, velcroAnchors, opts);
+    logElapsed(opts, 'Carved Velcro loop openings', stageTimer);
+
     plaOpts = struct( ...
         'marginMM', opts.plaMarginMm, ...
         'closeXYVox', opts.plaCloseXYVox, ...
@@ -286,6 +295,7 @@ function out = acsBuildCapMakerManufacturingStl(layoutIn, varargin)
     meshInfo.tpeComponents = occupancyComponentStats(occTpeCrop.occ);
     meshInfo.plaComponents = occupancyComponentStats(occPlaCrop.occ);
     meshInfo.tpeAssemblyBedLift = tpeAssemblyBedLift;
+    meshInfo.velcroSlotCarve = velcroSlotCarveInfo;
 
     qcFile = '';
     fig = [];
@@ -334,6 +344,7 @@ function out = acsBuildCapMakerManufacturingStl(layoutIn, varargin)
     out.implantExclusions = compactImplantExclusions(implantExclusions);
     out.strap = stripStrapFns(strap);
     out.velcroAnchors = stripOccFns(velcroAnchors);
+    out.velcroSlotCarve = velcroSlotCarveInfo;
     out.tpeAssemblyBedLift = tpeAssemblyBedLift;
     out.holderSupports = meshStats(TRholderSupports);
     out.railBuildInfo = railBuildInfo;
@@ -451,6 +462,11 @@ function opts = parseInputs(varargin)
     addParameter(p, 'velcroLoopAttachWidthMm', [], @(x) isempty(x) || isPositiveScalar(x));
     addParameter(p, 'velcroLoopAttachEmbedMm', 3, @isNonnegativeScalar);
     addParameter(p, 'velcroLoopFloorAtBed', true, @isBoolLike);
+    addParameter(p, 'velcroSlotCarve', true, @isBoolLike);
+    addParameter(p, 'velcroSlotClearanceMm', 0.5, @isNonnegativeScalar);
+    addParameter(p, 'velcroSlotCarveDepthMm', [], ...
+        @(x) isempty(x) || isPositiveScalar(x));
+    addParameter(p, 'velcroScalpUndersideCarve', true, @isBoolLike);
     addParameter(p, 'holderSupportMode', 'nearestRail', @(x) ischar(x) || isstring(x));
     addParameter(p, 'holderSupportCount', 2, ...
         @(x) isnumeric(x) && isscalar(x) && isfinite(x) && x >= 0);
@@ -613,6 +629,12 @@ function opts = parseInputs(varargin)
     end
     opts.velcroLoopAttachEmbedMm = double(opts.velcroLoopAttachEmbedMm);
     opts.velcroLoopFloorAtBed = logical(opts.velcroLoopFloorAtBed);
+    opts.velcroSlotCarve = logical(opts.velcroSlotCarve);
+    opts.velcroSlotClearanceMm = double(opts.velcroSlotClearanceMm);
+    if ~isempty(opts.velcroSlotCarveDepthMm)
+        opts.velcroSlotCarveDepthMm = double(opts.velcroSlotCarveDepthMm);
+    end
+    opts.velcroScalpUndersideCarve = logical(opts.velcroScalpUndersideCarve);
     opts.holderSupportMode = normalizeHolderSupportMode(opts.holderSupportMode);
     opts.holderSupportCount = round(double(opts.holderSupportCount));
     opts.holderSupportMinAngleDeg = double(opts.holderSupportMinAngleDeg);
@@ -2734,6 +2756,7 @@ function velcro = makeVelcroAnchorOccupancy(TRskin, TRrails, earExclusions, opts
     velcro.occFns = {};
     velcro.extraPoints = zeros(0, 3);
     velcro.params = velcroGeometryFromOptions(opts);
+    velcro.scalpUndersideCarve = opts.velcroScalpUndersideCarve;
 
     if strcmp(opts.velcroAnchorMode, 'none')
         return;
@@ -2786,6 +2809,7 @@ function velcro = makeVelcroAnchorOccupancy(TRskin, TRrails, earExclusions, opts
     velcro.anchors = plan.anchorsMm;
     velcro.outDirs = plan.outDirs;
     velcro.normals = plan.normals;
+    scalpClip = prepareVelcroScalpClip(TRskin, opts);
 
     for i = 1:size(velcro.anchors, 1)
         anchor = velcro.anchors(i, :);
@@ -2796,7 +2820,8 @@ function velcro = makeVelcroAnchorOccupancy(TRskin, TRrails, earExclusions, opts
         geomOcc.floorAtBed = false;
         zBed = opts.zBedMm;
         velcro.occFns{end + 1} = @(X,Y,Z) velcroAnchorOccFn( ...
-            X, Y, Z, anchor, outDir, normal, geomOcc, zBed); %#ok<AGROW>
+            X, Y, Z, anchor, outDir, normal, geomOcc, zBed, ...
+            scalpClip); %#ok<AGROW>
         velcro.extraPoints = [velcro.extraPoints; ...
             velcroAnchorExtentPoints(anchor, outDir, normal, geom)]; %#ok<AGROW>
     end
@@ -3194,7 +3219,27 @@ function normals = surfaceNormalsAtPoints(TRskin, points)
     end
 end
 
-function mask = velcroAnchorOccFn(X, Y, Z, anchor, outDir, normal, geom, zBed)
+function clip = prepareVelcroScalpClip(TRskin, opts)
+    clip = struct('enabled', opts.velcroScalpUndersideCarve, ...
+        'faces', zeros(0, 3), 'vertices', zeros(0, 3), ...
+        'faceNormals', zeros(0, 3), 'tol', opts.inpolyhedronTol);
+    if ~clip.enabled || isempty(TRskin) || isempty(TRskin.Points) || ...
+            isempty(TRskin.ConnectivityList)
+        clip.enabled = false;
+        return;
+    end
+    clip.faces = double(TRskin.ConnectivityList);
+    clip.vertices = double(TRskin.Points);
+    p1 = clip.vertices(clip.faces(:, 1), :);
+    p2 = clip.vertices(clip.faces(:, 2), :);
+    p3 = clip.vertices(clip.faces(:, 3), :);
+    clip.faceNormals = cross(p2 - p1, p3 - p1, 2);
+    lengths = sqrt(sum(clip.faceNormals .^ 2, 2));
+    clip.faceNormals = bsxfun(@rdivide, clip.faceNormals, max(lengths, eps));
+end
+
+function mask = velcroAnchorOccFn(X, Y, Z, anchor, outDir, normal, geom, zBed, ...
+        scalpClip)
     [center, uHat, vHat, nHat] = velcroAnchorFrame(anchor, outDir, normal, geom);
     dX = X - center(1);
     dY = Y - center(2);
@@ -3229,6 +3274,117 @@ function mask = velcroAnchorOccFn(X, Y, Z, anchor, outDir, normal, geom, zBed)
     if geom.floorAtBed
         mask = mask & Z >= zBed;
     end
+    if scalpClip.enabled && any(mask(:))
+        mask = clipOccupancyToScalpExterior(mask, X, Y, Z, scalpClip);
+    end
+end
+
+function mask = clipOccupancyToScalpExterior(mask, X, Y, Z, scalpClip)
+    rows = find(mask);
+    if isempty(rows)
+        return;
+    end
+    queryPoints = [X(rows), Y(rows), Z(rows)];
+    insideScalp = inpolyhedron(scalpClip.faces, scalpClip.vertices, ...
+        queryPoints, 'facenormals', scalpClip.faceNormals, ...
+        'tol', scalpClip.tol);
+    if any(insideScalp)
+        mask(rows(insideScalp)) = false;
+    end
+end
+
+function [occOut, info] = carveVelcroSlotsFromOccupancy(occIn, velcro, opts)
+    occOut = occIn;
+    info = struct( ...
+        'enabled', opts.velcroSlotCarve, ...
+        'anchorCount', 0, ...
+        'clearanceMm', opts.velcroSlotClearanceMm, ...
+        'carveDepthMm', opts.velcroSlotCarveDepthMm, ...
+        'removedVoxelCount', 0, ...
+        'removedVoxelCountByAnchor', zeros(0, 1));
+
+    if ~opts.velcroSlotCarve || ~hasVelcroAnchorGeometry(velcro) || ...
+            ~isfield(velcro, 'anchors') || isempty(velcro.anchors)
+        return;
+    end
+    required = {'x', 'y', 'z', 'occ'};
+    if ~all(isfield(occIn, required))
+        error('acsBuildCapMakerManufacturingStl:BadTpeOccupancy', ...
+            'Velcro slot carving requires x/y/z axes and an occ raster.');
+    end
+
+    x = double(occIn.x(:).');
+    y = double(occIn.y(:).');
+    z = double(occIn.z(:).');
+    B = logical(occIn.occ);
+    geom = velcro.params;
+    clearance = opts.velcroSlotClearanceMm;
+    innerHalfU = (geom.outerLengthMm - 2 * geom.frameWidthMm) / 2 + clearance;
+    innerHalfV = (geom.outerWidthMm - 2 * geom.frameWidthMm) / 2 + clearance;
+    outerHalfU = geom.outerLengthMm / 2;
+    outerHalfV = geom.outerWidthMm / 2;
+    if innerHalfU >= outerHalfU || innerHalfV >= outerHalfV
+        error('acsBuildCapMakerManufacturingStl:VelcroSlotClearanceTooLarge', ...
+            ['velcroSlotClearanceMm=%.3g removes the entire Velcro frame. ', ...
+             'Reduce the clearance or increase velcroLoopFrameWidthMm.'], clearance);
+    end
+
+    if isempty(opts.velcroSlotCarveDepthMm)
+        attachEmbed = getStructScalar(geom, 'attachEmbedMm', 0);
+        halfDepth = geom.thicknessMm / 2 + attachEmbed + ...
+            opts.railHeightMm + clearance + opts.voxelSizeMm;
+        carveDepth = 2 * halfDepth;
+    else
+        carveDepth = opts.velcroSlotCarveDepthMm;
+        halfDepth = carveDepth / 2;
+    end
+    info.anchorCount = size(velcro.anchors, 1);
+    info.carveDepthMm = carveDepth;
+    info.removedVoxelCountByAnchor = zeros(info.anchorCount, 1);
+
+    for i = 1:info.anchorCount
+        [center, uHat, vHat, nHat] = velcroAnchorFrame( ...
+            velcro.anchors(i, :), velcro.outDirs(i, :), ...
+            velcro.normals(i, :), geom);
+        corners = localBoxCorners(center, uHat, vHat, nHat, ...
+            innerHalfU, innerHalfV, halfDepth);
+        pad = opts.voxelSizeMm;
+        bbMin = min(corners, [], 1) - pad;
+        bbMax = max(corners, [], 1) + pad;
+        ix = find(x >= bbMin(1) & x <= bbMax(1));
+        iy = find(y >= bbMin(2) & y <= bbMax(2));
+        iz = find(z >= bbMin(3) & z <= bbMax(3));
+        if isempty(ix) || isempty(iy) || isempty(iz)
+            continue;
+        end
+
+        [X, Y, Z] = ndgrid(x(ix), y(iy), z(iz));
+        dX = X - center(1);
+        dY = Y - center(2);
+        dZ = Z - center(3);
+        u = uHat(1) * dX + uHat(2) * dY + uHat(3) * dZ;
+        v = vHat(1) * dX + vHat(2) * dY + vHat(3) * dZ;
+        w = nHat(1) * dX + nHat(2) * dY + nHat(3) * dZ;
+        slot = ((u ./ innerHalfU) .^ 2 + (v ./ innerHalfV) .^ 2 <= 1) & ...
+            (abs(w) <= halfDepth);
+        localBefore = B(ix, iy, iz);
+        removed = localBefore & slot;
+        localBefore(slot) = false;
+        B(ix, iy, iz) = localBefore;
+        info.removedVoxelCountByAnchor(i) = nnz(removed);
+    end
+
+    info.removedVoxelCount = sum(info.removedVoxelCountByAnchor);
+    occOut.occ = B;
+    logMsg(opts, ...
+        '  Velcro slot carve: removed %d TPE voxels across %d loop(s).', ...
+        info.removedVoxelCount, info.anchorCount);
+end
+
+function P = localBoxCorners(center, uHat, vHat, nHat, halfU, halfV, halfW)
+    [U, V, W] = ndgrid([-halfU halfU], [-halfV halfV], [-halfW halfW]);
+    P = bsxfun(@plus, center, ...
+        U(:) * uHat + V(:) * vHat + W(:) * nHat);
 end
 
 function [center, uHat, vHat, nHat] = velcroAnchorFrame(anchor, outDir, normal, geom)

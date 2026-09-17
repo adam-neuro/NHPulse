@@ -33,6 +33,15 @@ final STL build with
 `velcroAnchorMode='file'`, `velcroAnchorFile=velcroPlan.outputFile`, and
 `strapMode='none'`. Printed chin straps remain available as a legacy option for
 experiments that need them, but they require local validation for durability.
+During final raster processing, NHPulse carves each loop's open slot through
+any overlapping cap rails so the Velcro passage is clear in the exported TPE
+STL. `velcroSlotClearanceMm` controls clearance around the nominal slot;
+`velcroSlotCarve=false` disables this behavior for debugging or legacy output.
+The loop and its thick attachment pad are also clipped against the scalp mesh
+before fusion, leaving their inner surface flush with the modeled scalp while
+allowing material to stand proud on the outside. This local operation tests
+only candidate loop voxels and does not voxelize the full scalp. Set
+`velcroScalpUndersideCarve=false` only to reproduce the earlier geometry.
 
 ## Tested Hardware
 
