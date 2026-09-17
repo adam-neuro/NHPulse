@@ -82,6 +82,8 @@ verification = nhpulseVerifySyntheticWalkthrough();
 
 ## Documentation
 
+- [Run manifests and artifact provenance](docs/manifests.md)
+
 - [Installation](docs/installation.md): MATLAB path setup, local paths, and
   third-party dependencies.
 - [Synthetic Walkthrough](docs/synthetic_walkthrough.md): the supported public
