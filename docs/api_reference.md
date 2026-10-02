@@ -51,6 +51,14 @@ description.
   prediction and UCB-style acquisition.
 - `acsAssembleTesEegCapMakerLayout`: interleave EEG electrodes around selected
   tES sites.
+- `acsBuildTesToEegTransferMatrix`: perform and cache the independent direct
+  solves that map fixed-layout tES currents to referenced EEG voltages.
+- `acsOptimizeOrthogonalTesEegTopography`: find a current-balanced active
+  control whose predicted EEG artifact is orthogonal to the target-optimized
+  stimulus under matched current limits.
+- `acsPrepareTesEegContrastProtocol`: resolve a finalized cap by tag from a
+  clean workspace and export target-optimized and EEG-orthogonal signed
+  current vectors in a stable MAT/CSV protocol.
 - `acsShowTesStimulationParameters`: reload a saved sparse/layout/manufacturing
   product and display the final tES current recipe, with optional replay of
   saved electric-field and EEG topography figures.
