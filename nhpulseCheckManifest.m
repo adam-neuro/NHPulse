@@ -8,14 +8,18 @@ function report = nhpulseCheckManifest(manifestIn, varargin)
 % Name-value options:
 %   verifyContent : recompute artifact fingerprints [true]
 %   verbose       : print a concise report [true]
+%   artifactTypes : additional/overriding hierarchy definitions [struct([])]
 
     p = inputParser;
     addParameter(p, 'verifyContent', true, @isBoolLike);
     addParameter(p, 'verbose', true, @isBoolLike);
+    addParameter(p, 'artifactTypes', struct([]), @isstruct);
     parse(p, varargin{:});
     opts = p.Results;
     opts.verifyContent = logical(opts.verifyContent);
     opts.verbose = logical(opts.verbose);
+    registry = nhpulseArtifactTypes( ...
+        'additionalTypes', p.Results.artifactTypes);
 
     if ischar(manifestIn) || isstring(manifestIn)
         manifest = nhpulseLoadManifest(manifestIn);
@@ -49,7 +53,20 @@ function report = nhpulseCheckManifest(manifestIn, varargin)
         check.fingerprintMatches = ~opts.verifyContent;
         check.parentsResolve = true;
         check.parentFingerprintsMatch = true;
+        [definition, check.typeKnown] = findDefinition(registry, check.type);
+        check.typeCompatible = true;
         messages = {};
+
+        if check.typeKnown
+            [~, ext] = artifactExtension(check.path);
+            if ~isempty(definition.extensions) && ...
+                    ~any(strcmpi(ext, definition.extensions))
+                check.typeCompatible = false;
+                messages{end + 1} = sprintf( ...
+                    'file extension %s is not expected for artifact type %s', ...
+                    ext, check.type); %#ok<AGROW>
+            end
+        end
 
         if ~check.exists
             messages{end + 1} = 'artifact file is missing'; %#ok<AGROW>
@@ -74,6 +91,13 @@ function report = nhpulseCheckManifest(manifestIn, varargin)
                 continue;
             end
             idxList(end + 1, 1) = idx; %#ok<AGROW>
+            if check.typeKnown && ~parentTypeAllowed( ...
+                    definition, artifacts(idx).type)
+                check.typeCompatible = false;
+                messages{end + 1} = sprintf( ...
+                    'parent type %s is incompatible with %s', ...
+                    char(artifacts(idx).type), check.type); %#ok<AGROW>
+            end
             if ~nhpulseManifestInternal('fingerprintsEqual', ...
                     refs(j).recordedFingerprint, ...
                     artifacts(idx).contentFingerprint)
@@ -86,7 +110,8 @@ function report = nhpulseCheckManifest(manifestIn, varargin)
         check.messages = messages;
         checks(i) = check;
         ownPassed(i) = check.exists && check.fingerprintMatches && ...
-            check.parentsResolve && check.parentFingerprintsMatch;
+            check.parentsResolve && check.parentFingerprintsMatch && ...
+            check.typeCompatible;
     end
 
     cycleAffected = graphCycleAffected(parentIndices, n);
@@ -116,6 +141,8 @@ function report = nhpulseCheckManifest(manifestIn, varargin)
             checks(i).status = 'current';
         elseif ~checks(i).exists
             checks(i).status = 'missing';
+        elseif ~checks(i).typeCompatible
+            checks(i).status = 'incompatible';
         else
             checks(i).status = 'stale';
         end
@@ -130,9 +157,10 @@ function report = nhpulseCheckManifest(manifestIn, varargin)
     report.passed = isempty(duplicateIds) && all(passed);
     report.artifactCount = n;
     report.currentCount = nnz(passed);
+    report.incompatibleCount = nnz(strcmp({checks.status}, 'incompatible'));
     report.duplicateArtifactIds = duplicateIds;
     report.checks = checks;
-    report.validationScope = 'generic';
+    report.validationScope = 'generic-plus-artifact-hierarchy';
 
     if opts.verbose
         printReport(report);
@@ -143,8 +171,39 @@ function value = emptyCheck()
     value = struct('artifactId', '', 'type', '', 'label', '', 'path', '', ...
         'exists', false, 'fingerprintMatches', false, ...
         'parentsResolve', false, 'parentFingerprintsMatch', false, ...
+        'typeKnown', false, 'typeCompatible', true, ...
         'cycleAffected', false, 'passed', false, 'status', '', ...
         'messages', {{}});
+end
+
+function [definition, found] = findDefinition(registry, type)
+    idx = find(strcmp({registry.type}, char(type)), 1);
+    found = ~isempty(idx);
+    if found
+        definition = registry(idx);
+    else
+        definition = struct();
+    end
+end
+
+function tf = parentTypeAllowed(definition, parentType)
+    switch definition.parentPolicy
+        case 'any'
+            tf = true;
+        case 'root'
+            tf = false;
+        case 'listed'
+            tf = any(strcmp(definition.allowedParentTypes, char(parentType)));
+        otherwise
+            tf = true;
+    end
+end
+
+function [stem, ext] = artifactExtension(fileName)
+    [~, stem, ext] = fileparts(fileName);
+    if strcmpi(ext, '.gz') && endsWith(lower(stem), '.nii')
+        ext = '.gz';
+    end
 end
 
 function affected = graphCycleAffected(parentIndices, n)

@@ -22,6 +22,21 @@ description.
 - `nhpulseVerifySyntheticWalkthrough`: verify products from the full synthetic
   walkthrough.
 
+## Projects And Provenance
+
+- `nhpulseArtifactTypes`: inspect or extend the artifact hierarchy.
+- `nhpulseOpenProject`: load all run manifests and inventory recognizable
+  unregistered outputs without modifying them.
+- `nhpulseProjectStatus`: report current, stale, missing, incompatible, and
+  unregistered artifacts in one table.
+- `nhpulseDiscoverLegacyArtifacts`: perform the read-only legacy output scan.
+- `nhpulseImportLegacyArtifacts`: preview or explicitly register selected
+  legacy files in place; dry-run mode is the default.
+- `nhpulseCreateManifest`, `nhpulseRegisterArtifact`, and
+  `nhpulseSaveManifest`: record a new run and its dependency edges.
+- `nhpulseCheckManifest`: validate files, fingerprints, dependency freshness,
+  cycles, and known artifact-type relationships.
+
 ## Scalp And Registration
 
 - `acsBuildRoastScalpSkinCache`: build a capMaker-compatible scalp cache from

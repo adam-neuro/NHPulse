@@ -44,6 +44,17 @@ The verifier checks expected product classes:
 - final TPE/PLA manufacturing STLs,
 - optional real ROAST lead-field result.
 
+## Provenance Self-Tests
+
+```matlab
+nhpulseTestManifestRecorder;
+nhpulseTestProjectInspection;
+```
+
+These fast tests use temporary files only. They verify manifest round trips,
+fingerprints, stale dependency propagation, artifact hierarchy checks, project
+opening, read-only legacy discovery, and dry-run import behavior.
+
 ## Manual Checks
 
 For a reviewer-oriented run, inspect:
@@ -60,4 +71,4 @@ For a reviewer-oriented run, inspect:
 
 Planned public-development milestones include small unit tests for config
 helpers, file-format generators, mesh-cache fingerprints, exclusion reuse, and
-STL output assertions.
+deeper geometry assertions for manufacturing products.
