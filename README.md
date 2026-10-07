@@ -83,6 +83,8 @@ verification = nhpulseVerifySyntheticWalkthrough();
 ## Documentation
 
 - [Run manifests and artifact provenance](docs/manifests.md)
+- [Stable pipeline services](docs/services.md): explicit, workspace-independent
+  stage APIs for scripts and future GUI clients.
 
 - [Installation](docs/installation.md): MATLAB path setup, local paths, and
   third-party dependencies.

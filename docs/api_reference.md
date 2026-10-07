@@ -37,6 +37,26 @@ description.
 - `nhpulseCheckManifest`: validate files, fingerprints, dependency freshness,
   cycles, and known artifact-type relationships.
 
+## Stable Pipeline Services
+
+- `nhpulseCreateProjectContext`: identify one project root and run manifest.
+- `nhpulseResolveArtifact`: resolve and validate an artifact key or handle.
+- `nhpulseServiceBuildScalp`, `nhpulseServiceCropScalp`, and
+  `nhpulseServiceDefineExclusions`: prepare printable subject geometry.
+- `nhpulseServicePlaceHeadpost`: place/register a headpost and its keepout.
+- `nhpulseServiceBuildFitCheck`: export/register a sparse PLA fit-check cap.
+- `nhpulseServiceDefineFiducials` and `nhpulseServiceSelectTarget`: register
+  spatial landmarks and the brain target consumed by later stages.
+- `nhpulseServiceBuildCandidateLayout`, `nhpulseServiceGenerateLeadField`, and
+  `nhpulseServiceOptimizeMontage`: perform registered targeting stages.
+- `nhpulseServiceGrowCandidateLayout`: propose/register an expanded candidate
+  layout from the current sparse solution.
+- `nhpulseServiceBuildCombinedLayout`, `nhpulseServicePlanRetention`, and
+  `nhpulseServiceBuildManufacturing`: produce the final layout and STLs.
+
+See [Stable Pipeline Services](services.md) for the service contract and call
+sequence.
+
 ## Scalp And Registration
 
 - `acsBuildRoastScalpSkinCache`: build a capMaker-compatible scalp cache from

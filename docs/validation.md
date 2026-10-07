@@ -49,11 +49,14 @@ The verifier checks expected product classes:
 ```matlab
 nhpulseTestManifestRecorder;
 nhpulseTestProjectInspection;
+nhpulseTestServiceLayer;
 ```
 
 These fast tests use temporary files only. They verify manifest round trips,
 fingerprints, stale dependency propagation, artifact hierarchy checks, project
 opening, read-only legacy discovery, and dry-run import behavior.
+The service-layer test additionally checks explicit context resolution,
+workspace independence, stale-input rejection, and dependency refresh.
 
 ## Manual Checks
 

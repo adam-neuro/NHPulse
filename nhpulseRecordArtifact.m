@@ -140,7 +140,7 @@ function roles = normalizeRoles(value, count)
     roles = normalizeCellstr(value);
     if count == 0
         roles = {};
-    elseif numel(roles) == 1
+    elseif isscalar(roles)
         roles = repmat(roles, count, 1);
     elseif numel(roles) ~= count
         error('nhpulseRecordArtifact:ParentRoleCount', ...
