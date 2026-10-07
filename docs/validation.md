@@ -50,6 +50,7 @@ The verifier checks expected product classes:
 nhpulseTestManifestRecorder;
 nhpulseTestProjectInspection;
 nhpulseTestServiceLayer;
+nhpulseTestApplicationShell;
 ```
 
 These fast tests use temporary files only. They verify manifest round trips,
@@ -57,6 +58,8 @@ fingerprints, stale dependency propagation, artifact hierarchy checks, project
 opening, read-only legacy discovery, and dry-run import behavior.
 The service-layer test additionally checks explicit context resolution,
 workspace independence, stale-input rejection, and dependency refresh.
+The application-shell test opens a hidden project window and verifies project,
+subject, run, workflow, and artifact-table population.
 
 ## Manual Checks
 

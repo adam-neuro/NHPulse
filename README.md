@@ -6,9 +6,10 @@ utilities for synthetic/reviewer examples, subject-specific scalp and implant
 registration, capMaker-style layout design, sparse tES targeting, EEG
 interleaving, and PLA/TPE STL generation.
 
-The current release is a working research-software alpha rather than a polished
-GUI application. The reviewer path is intentionally script-based so every file,
-setting, and intermediate product is inspectable.
+The current release is a working research-software alpha. Its thin application
+shell opens manifest-backed projects and launches specialized GUIs, while the
+reviewer walkthrough remains script-based so every file, setting, and
+intermediate product is inspectable.
 
 ## Reviewer Quick Start
 
@@ -82,6 +83,8 @@ verification = nhpulseVerifySyntheticWalkthrough();
 
 ## Documentation
 
+- [Application shell](docs/application.md): project/run selection, workflow
+  navigation, artifact status, and specialized GUI launchers.
 - [Run manifests and artifact provenance](docs/manifests.md)
 - [Stable pipeline services](docs/services.md): explicit, workspace-independent
   stage APIs for scripts and future GUI clients.

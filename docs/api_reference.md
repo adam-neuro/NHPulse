@@ -24,6 +24,8 @@ description.
 
 ## Projects And Provenance
 
+- `nhpulseApp`: select projects, subjects, and runs; navigate workflow stages;
+  inspect artifact status; and launch specialized GUIs.
 - `nhpulseArtifactTypes`: inspect or extend the artifact hierarchy.
 - `nhpulseOpenProject`: load all run manifests and inventory recognizable
   unregistered outputs without modifying them.

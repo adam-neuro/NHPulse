@@ -1,8 +1,8 @@
 # User Manual
 
-NHPulse is organized as a transparent MATLAB workflow rather than a single GUI.
-Most users should start with the synthetic walkthrough and then adapt the same
-sequence to real subject data.
+NHPulse combines a transparent MATLAB workflow with a thin project application.
+Most users should start with the synthetic walkthrough and then use
+`nhpulseApp` to reopen manifest-backed runs and launch specialized tools.
 
 ## Core Idea
 
