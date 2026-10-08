@@ -59,7 +59,8 @@ opening, read-only legacy discovery, and dry-run import behavior.
 The service-layer test additionally checks explicit context resolution,
 workspace independence, stale-input rejection, and dependency refresh.
 The application-shell test opens a hidden project window and verifies project,
-subject, run, workflow, and artifact-table population.
+subject, run, workflow, and artifact-table population. It also verifies legacy
+artifact display and explicit import into a subject-labeled inventory run.
 
 ## Manual Checks
 

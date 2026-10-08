@@ -16,6 +16,10 @@ function report = nhpulseTestApplicationShell(varargin)
         'runLabel', 'Subject A test run', ...
         'runMetadata', struct('subjectId', 'SubjectA'), ...
         'fingerprintMode', 'metadata');
+    legacyRoot = fullfile(root, 'outputs', 'LegacySubject');
+    mkdir(legacyRoot);
+    legacyFile = fullfile(legacyRoot, 'LegacySubject_T1.nii');
+    writeBytes(legacyFile, uint8(31:54));
 
     app = nhpulseApp(root, 'verifyContent', false, 'visible', 'off');
     figureCleaner = onCleanup(@() closeIfValid(app.Figure));
@@ -27,10 +31,22 @@ function report = nhpulseTestApplicationShell(varargin)
     report.nestedManifestRootPreserved = strcmp( ...
         app.Figure.UserData.project.runs(1).manifest.projectRoot, runRoot);
     report.subjectListed = any(strcmp(app.SubjectDropDown.Items, 'SubjectA'));
+    report.legacySubjectListed = any(strcmp(app.SubjectDropDown.Items, ...
+        'LegacySubject'));
     report.runListed = any(contains(app.RunDropDown.Items, 'subject-a-run'));
     report.workflowPresent = numel(app.WorkflowList.Items) >= 10;
     report.artifactShown = height(data) == 1 && ...
         strcmp(data.Status{1}, 'current');
+    app.SubjectDropDown.Value = 'LegacySubject';
+    app.SubjectDropDown.ValueChangedFcn(app.SubjectDropDown, []);
+    legacyData = app.ArtifactTable.Data;
+    report.legacyArtifactShown = height(legacyData) == 1 && ...
+        strcmp(legacyData.Status{1}, 'unregistered');
+    report.importEnabled = strcmp(app.ImportButton.Enable, 'on');
+    app.ImportButton.ButtonPushedFcn(app.ImportButton, []);
+    report.legacyImportCreatedRun = ...
+        numel(app.Figure.UserData.project.runs) == 2 && ...
+        isempty(app.Figure.UserData.project.legacyArtifacts);
     report.passed = all(cell2mat(struct2cell(report)));
     if logical(p.Results.verbose)
         fprintf('NHPulse application shell self-test: %s\n', ...

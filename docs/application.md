@@ -25,6 +25,10 @@ type another root and select **Open**.
   stage is current, partial, stale, missing, or not started.
 - **Artifacts** lists registered products for the selected run. Green rows are
   current; amber or red rows require attention.
+- **Unregistered outputs** appears as a temporary run when recognizable files
+  predate the manifest system. Select one inferred subject and choose
+  **Import existing outputs** to create an inventory manifest. Importing does
+  not move files or guess unknown parent relationships.
 - **Inspect selected** opens an existing specialized inspector when one is
   registered for that artifact type.
 - **Open file folder** reveals the selected artifact without changing it.
@@ -39,3 +43,6 @@ The shell intentionally leaves long or highly configurable operations, such as
 lead-field generation and montage optimization, in the documented service and
 walkthrough APIs for now. Those stages still appear in workflow navigation and
 artifact status reporting.
+
+Current smoke tests and walkthroughs write manifests automatically. The import
+path is primarily for products created by older NHPulse versions.

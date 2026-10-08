@@ -79,8 +79,8 @@ function app = nhpulseApp(varargin)
         'ColumnEditable', false, ...
         'ColumnWidth', {105, 155, 230, 100, 'auto'}, ...
         'CellSelectionCallback', @onArtifactSelected);
-    artifactActions = uigridlayout(artifactGrid, [1 3]);
-    artifactActions.ColumnWidth = {150, 150, '1x'};
+    artifactActions = uigridlayout(artifactGrid, [1 4]);
+    artifactActions.ColumnWidth = {150, 150, 180, '1x'};
     artifactActions.Padding = [0 0 0 0];
     inspectButton = uibutton(artifactActions, 'push', ...
         'Text', 'Inspect selected', 'Enable', 'off', ...
@@ -88,6 +88,9 @@ function app = nhpulseApp(varargin)
     artifactFolderButton = uibutton(artifactActions, 'push', ...
         'Text', 'Open file folder', 'Enable', 'off', ...
         'ButtonPushedFcn', @onOpenArtifactFolder);
+    importButton = uibutton(artifactActions, 'push', ...
+        'Text', 'Import existing outputs', 'Enable', 'off', ...
+        'ButtonPushedFcn', @onImportLegacy);
     selectedPathLabel = uilabel(artifactActions, 'Text', '', ...
         'HorizontalAlignment', 'right');
 
@@ -105,7 +108,7 @@ function app = nhpulseApp(varargin)
         'SubjectDropDown', subjectDropDown, 'RunDropDown', runDropDown, ...
         'WorkflowList', workflowList, 'ArtifactTable', artifactTable, ...
         'LaunchButton', launchButton, 'RefreshButton', refreshButton, ...
-        'StatusLabel', statusLabel);
+        'ImportButton', importButton, 'StatusLabel', statusLabel);
     refreshProject(false);
 
     function onBrowseProject(~, ~)
@@ -158,6 +161,10 @@ function app = nhpulseApp(varargin)
         for i = 1:numel(state.project.runs)
             subjects{i} = runSubject(state.project.runs(i));
         end
+        legacySubjects = arrayfun(@legacySubject, ...
+            state.project.legacyArtifacts, 'UniformOutput', false);
+        subjects = [subjects; legacySubjects(:)];
+        subjects = subjects(~strcmp(subjects, 'Unspecified'));
         subjects = unique(subjects, 'stable');
         subjectDropDown.Items = [{'All subjects'}; subjects(:)];
         subjectDropDown.Value = 'All subjects';
@@ -178,6 +185,10 @@ function app = nhpulseApp(varargin)
                 subjectDropDown.Value), state.project.runs);
             indices = indices(keep(:));
         end
+        legacy = filteredLegacyArtifacts();
+        if ~isempty(legacy)
+            indices(end + 1, 1) = 0;
+        end
         state.runMap = indices;
         fig.UserData = state;
         if isempty(indices)
@@ -188,8 +199,13 @@ function app = nhpulseApp(varargin)
         end
         labels = cell(numel(indices), 1);
         for i = 1:numel(indices)
-            run = state.project.runs(indices(i));
-            labels{i} = sprintf('%s  [%s]', run.runLabel, run.runId);
+            if indices(i) == 0
+                labels{i} = sprintf('Unregistered outputs  [%d files]', ...
+                    numel(legacy));
+            else
+                run = state.project.runs(indices(i));
+                labels{i} = sprintf('%s  [%s]', run.runLabel, run.runId);
+            end
         end
         runDropDown.Items = labels;
         runDropDown.Value = labels{1};
@@ -214,7 +230,17 @@ function app = nhpulseApp(varargin)
         end
         item = find(strcmp(runDropDown.Items, runDropDown.Value), 1);
         if isempty(item) || item > numel(state.runMap), return; end
+        if state.runMap(item) == 0, return; end
         run = state.project.runs(state.runMap(item));
+    end
+
+    function tf = isLegacySelection()
+        state = fig.UserData;
+        tf = false;
+        if isempty(state.runMap), return; end
+        item = find(strcmp(runDropDown.Items, runDropDown.Value), 1);
+        tf = ~isempty(item) && item <= numel(state.runMap) && ...
+            state.runMap(item) == 0;
     end
 
     function context = selectedContext()
@@ -236,6 +262,8 @@ function app = nhpulseApp(varargin)
                 pathMask({state.project.artifacts.manifestFile}, ...
                 run.manifestFile);
             rows = state.project.artifacts(mask);
+        elseif isLegacySelection()
+            rows = legacyRows(filteredLegacyArtifacts());
         end
         state.artifactRows = rows;
         state.selectedArtifactRow = [];
@@ -253,6 +281,7 @@ function app = nhpulseApp(varargin)
         end
         inspectButton.Enable = 'off';
         artifactFolderButton.Enable = 'off';
+        importButton.Enable = onOff(isLegacySelection() && ~isempty(rows));
         selectedPathLabel.Text = '';
         styleArtifactRows(rows);
     end
@@ -267,6 +296,8 @@ function app = nhpulseApp(varargin)
                     color = [1.00 0.94 0.82];
                 case 'missing'
                     color = [1.00 0.88 0.88];
+                case 'unregistered'
+                    color = [0.91 0.94 0.98];
                 otherwise
                     continue;
             end
@@ -297,7 +328,11 @@ function app = nhpulseApp(varargin)
         run = selectedRun();
         displays = cell(numel(workflow), 1);
         for i = 1:numel(workflow)
-            status = stageStatus(run, state.project, workflow(i));
+            if isLegacySelection()
+                status = legacyStageStatus(filteredLegacyArtifacts(), workflow(i));
+            else
+                status = stageStatus(run, state.project, workflow(i));
+            end
             displays{i} = sprintf('%s  [%s]', workflow(i).name, status);
         end
         previous = selectedWorkflowIndex();
@@ -318,7 +353,11 @@ function app = nhpulseApp(varargin)
         launchButton.Text = item.buttonLabel;
         launchButton.Enable = onOff(hasRun && ~isempty(item.action));
         if ~hasRun
-            launchButton.Text = 'Select a run';
+            if isLegacySelection()
+                launchButton.Text = 'Import outputs first';
+            else
+                launchButton.Text = 'Select a run';
+            end
         end
     end
 
@@ -339,8 +378,15 @@ function app = nhpulseApp(varargin)
         state = fig.UserData;
         run = selectedRun();
         if isempty(run)
-            summaryLabel.Text = sprintf('%d run(s), %d unregistered file(s)', ...
-                numel(state.project.runs), numel(state.project.legacyArtifacts));
+            legacy = filteredLegacyArtifacts();
+            if isLegacySelection()
+                summaryLabel.Text = sprintf(['No registered run selected | ', ...
+                    '%d unregistered artifact(s) found'], numel(legacy));
+            else
+                summaryLabel.Text = sprintf('%d run(s), %d unregistered file(s)', ...
+                    numel(state.project.runs), ...
+                    numel(state.project.legacyArtifacts));
+            end
             return;
         end
         mask = strcmp({state.project.artifacts.runId}, run.runId) & ...
@@ -548,6 +594,68 @@ function app = nhpulseApp(varargin)
         openFolder(fileparts(artifact.path));
     end
 
+    function onImportLegacy(~, ~)
+        state = fig.UserData;
+        legacy = filteredLegacyArtifacts();
+        if isempty(legacy), return; end
+        subjects = unique(arrayfun(@legacySubject, legacy, ...
+            'UniformOutput', false), 'stable');
+        subjects = subjects(~strcmp(subjects, 'Unspecified'));
+        if strcmp(subjectDropDown.Value, 'All subjects') && numel(subjects) > 1
+            message = ['Select one subject before importing so files from ', ...
+                'different subjects are not combined into one run.'];
+            if strcmp(fig.Visible, 'on')
+                uialert(fig, message, 'Select a subject');
+                return;
+            end
+            error('nhpulseApp:LegacySubjectAmbiguous', message);
+        end
+        if strcmp(subjectDropDown.Value, 'All subjects')
+            if isempty(subjects), subject = 'Unspecified'; else, subject = subjects{1}; end
+        else
+            subject = subjectDropDown.Value;
+        end
+        if strcmp(fig.Visible, 'on')
+            answer = uiconfirm(fig, sprintf([ ...
+                'Register %d existing artifact(s) for %s?\n\n', ...
+                'Files will not be moved or modified. Parent relationships ', ...
+                'will remain explicitly unknown.'], numel(legacy), subject), ...
+                'Import existing outputs', ...
+                'Options', {'Import', 'Cancel'}, ...
+                'DefaultOption', 1, 'CancelOption', 2);
+            if ~strcmp(answer, 'Import'), return; end
+        end
+        setBusy(true, 'Registering existing outputs...');
+        cleanup = onCleanup(@() setBusy(false, 'Ready'));
+        try
+            nhpulseImportLegacyArtifacts(state.project, ...
+                'selection', {legacy.path}, 'dryRun', false, ...
+                'runLabel', [subject ' imported outputs'], ...
+                'metadata', struct('subjectId', subject), 'verbose', true);
+            refreshProject(false);
+        catch ME
+            if strcmp(fig.Visible, 'on')
+                uialert(fig, ME.message, 'Import failed');
+            else
+                rethrow(ME);
+            end
+        end
+        clear cleanup
+    end
+
+    function legacy = filteredLegacyArtifacts()
+        state = fig.UserData;
+        legacy = state.project.legacyArtifacts;
+        if strcmp(subjectDropDown.Value, 'All subjects') || isempty(legacy)
+            return;
+        end
+        keep = false(numel(legacy), 1);
+        for i = 1:numel(legacy)
+            keep(i) = strcmp(legacySubject(legacy(i)), subjectDropDown.Value);
+        end
+        legacy = legacy(keep);
+    end
+
     function clearProjectDisplay()
         state = fig.UserData;
         state.project = [];
@@ -565,13 +673,14 @@ function app = nhpulseApp(varargin)
         launchButton.Enable = 'off';
         inspectButton.Enable = 'off';
         artifactFolderButton.Enable = 'off';
+        importButton.Enable = 'off';
     end
 
     function setBusy(tf, message)
         if ~isgraphics(fig), return; end
         controls = {browseButton, openButton, refreshButton, folderButton, ...
             subjectDropDown, runDropDown, workflowList, launchButton, ...
-            inspectButton, artifactFolderButton};
+            inspectButton, artifactFolderButton, importButton};
         if tf
             fig.Pointer = 'watch';
             for i = 1:numel(controls), controls{i}.Enable = 'off'; end
@@ -591,6 +700,8 @@ function app = nhpulseApp(varargin)
                     inspectButton.Enable = onOff(canInspect(artifact.type));
                     artifactFolderButton.Enable = 'on';
                 end
+                importButton.Enable = onOff(isLegacySelection() && ...
+                    ~isempty(filteredLegacyArtifacts()));
             end
         end
         setStatus(message);
@@ -729,6 +840,58 @@ function status = stageStatus(run, project, definition)
     else
         status = 'Partial';
     end
+end
+
+function status = legacyStageStatus(legacy, definition)
+    if isempty(legacy)
+        status = 'Not started';
+        return;
+    end
+    matched = ismember({legacy.type}, definition.outputTypes);
+    if any(matched)
+        status = 'Unregistered';
+    else
+        status = 'Not started';
+    end
+end
+
+function rows = legacyRows(legacy)
+    rows = repmat(emptyArtifact(), numel(legacy), 1);
+    for i = 1:numel(legacy)
+        rows(i).source = 'legacy';
+        rows(i).artifactId = legacy(i).discoveryId;
+        rows(i).type = legacy(i).type;
+        rows(i).label = legacy(i).label;
+        rows(i).path = legacy(i).path;
+        rows(i).stage = legacy(i).stage;
+        rows(i).stageOrder = legacy(i).stageOrder;
+        rows(i).status = 'unregistered';
+        rows(i).registered = false;
+        rows(i).messages = {legacy(i).reason};
+    end
+end
+
+function subject = legacySubject(item)
+    subject = 'Unspecified';
+    relativePath = strrep(char(item.relativePath), '\', '/');
+    parts = strsplit(relativePath, '/');
+    parts = parts(~cellfun(@isempty, parts));
+    if numel(parts) < 2, return; end
+    subjectsIndex = find(strcmpi(parts, 'subjects'), 1);
+    if ~isempty(subjectsIndex) && subjectsIndex < numel(parts)
+        subject = parts{subjectsIndex + 1};
+        return;
+    end
+    syntheticIndex = find(strcmpi(parts, 'syntheticMwe'), 1);
+    if ~isempty(syntheticIndex) && syntheticIndex < numel(parts)
+        subject = parts{syntheticIndex + 1};
+        return;
+    end
+    ignored = {'outputs', 'capMaker', 'segmentation', 'qc', 'manifests'};
+    directoryParts = parts(1:(end - 1));
+    normalized = cellfun(@lower, directoryParts, 'UniformOutput', false);
+    idx = find(~ismember(normalized, ignored), 1);
+    if ~isempty(idx), subject = directoryParts{idx}; end
 end
 
 function subject = runSubject(run)

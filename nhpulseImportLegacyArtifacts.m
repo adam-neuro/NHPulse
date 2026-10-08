@@ -9,6 +9,8 @@ function result = nhpulseImportLegacyArtifacts(projectIn, varargin)
 %   selection       : discovery IDs, types, or paths [{} = all]
 %   dryRun          : preview without writing a manifest [true]
 %   runLabel        : label for the new manifest ['Legacy output import']
+%   runId           : explicit run identifier [[] = generated]
+%   metadata        : additional run metadata [struct()]
 %   fingerprintMode : register mode ['auto']
 %   artifactTypes   : additional hierarchy definitions [struct([])]
 %   verbose         : print planned/imported files [true]
@@ -21,6 +23,8 @@ function result = nhpulseImportLegacyArtifacts(projectIn, varargin)
     addParameter(p, 'dryRun', true, @isBoolLike);
     addParameter(p, 'runLabel', 'Legacy output import', ...
         @(x) ischar(x) || isstring(x));
+    addParameter(p, 'runId', '', @(x) ischar(x) || isstring(x));
+    addParameter(p, 'metadata', struct(), @isstruct);
     addParameter(p, 'fingerprintMode', 'auto', ...
         @(x) ischar(x) || isstring(x));
     addParameter(p, 'artifactTypes', struct([]), @isstruct);
@@ -59,10 +63,12 @@ function result = nhpulseImportLegacyArtifacts(projectIn, varargin)
         return;
     end
 
-    metadata = struct('importedLegacyOutputs', true, ...
-        'parentInference', 'none', 'sourceProjectOpenedOn', project.openedOn);
+    metadata = opts.metadata;
+    metadata.importedLegacyOutputs = true;
+    metadata.parentInference = 'none';
+    metadata.sourceProjectOpenedOn = project.openedOn;
     manifest = nhpulseCreateManifest(project.projectRoot, opts.runLabel, ...
-        'metadata', metadata);
+        'runId', opts.runId, 'metadata', metadata);
     for i = 1:numel(selected)
         itemMetadata = struct('legacyDiscoveryId', selected(i).discoveryId, ...
             'classificationConfidence', selected(i).confidence, ...

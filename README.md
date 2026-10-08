@@ -60,6 +60,10 @@ report = nhpulseCheckDependencies();
 smokeOut = nhpulseRunSyntheticSmokeTest('force', true, 'showFigures', true);
 ```
 
+The smoke test records a small manifest-backed run that can immediately be
+opened with `nhpulseApp(P.outputRoot)`. Older output folders are shown as
+**Unregistered outputs** and can be adopted without moving their files.
+
 Then open [exampleWalkthrough.m](exampleWalkthrough.m) and run the cells in
 order. The default preset uses interactive GUI steps and dummy lead fields so a
 reviewer can exercise the full cap-manufacturing path without waiting for long
