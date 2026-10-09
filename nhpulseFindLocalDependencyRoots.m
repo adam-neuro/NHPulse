@@ -3,9 +3,10 @@ function roots = nhpulseFindLocalDependencyRoots(repoRoot, diagnosticNames)
 %
 % roots = nhpulseFindLocalDependencyRoots(repoRoot, diagnosticNames) searches
 % only under repoRoot/lib for diagnostic filenames such as spm_vol.m,
-% cvx_setup.m, or vol2mesh.m. It returns the immediate child folder of lib/
-% that contains each match, so downloads named spm12-main or iso2mesh-1.9.9
-% can be detected without forcing reviewers to rename folders.
+% cvx_setup.m, or vol2mesh.m. Dependency entry-point files are expected at
+% the root of an immediate lib/ child (or one wrapper folder below it). This
+% bounded search recognizes names such as spm12-main or iso2mesh-1.9.9
+% without repeatedly crawling every file in large dependency installations.
 
     repoRoot = normalizePath(repoRoot);
     if isempty(repoRoot)
@@ -23,66 +24,56 @@ function roots = nhpulseFindLocalDependencyRoots(repoRoot, diagnosticNames)
         return;
     end
 
-    stack = {libRoot};
-    seenFolders = {};
     seenRoots = {};
-    while ~isempty(stack)
-        folderName = stack{end};
-        stack(end) = [];
-        folderKey = canonicalizeLight(folderName);
-        if isempty(folderKey) || any(strcmpi(folderKey, seenFolders))
-            continue;
-        end
-        seenFolders{end + 1} = folderKey; %#ok<AGROW>
-
-        try
-            listing = dir(folderName);
-        catch
-            continue;
-        end
-
-        for i = 1:numel(listing)
-            item = listing(i);
-            if item.isdir
-                if shouldSkipFolderName(item.name)
-                    continue;
-                end
-                stack{end + 1} = fullfile(item.folder, item.name); %#ok<AGROW>
-            elseif any(strcmpi(item.name, diagnosticNames))
-                root = immediateChildUnderRoot(item.folder, libRoot);
-                rootKey = canonicalizeLight(root);
-                if ~isempty(rootKey) && ~any(strcmpi(rootKey, seenRoots))
-                    seenRoots{end + 1} = rootKey; %#ok<AGROW>
-                    roots{end + 1, 1} = root; %#ok<AGROW>
+    candidates = childFolders(libRoot);
+    if folderHasMarker(libRoot, diagnosticNames)
+        roots{end + 1, 1} = libRoot;
+        seenRoots{end + 1} = canonicalizeLight(libRoot);
+    end
+    for i = 1:numel(candidates)
+        root = candidates{i};
+        matchedRoot = root;
+        found = folderHasMarker(root, diagnosticNames);
+        if ~found
+            wrappers = childFolders(root);
+            for j = 1:numel(wrappers)
+                if folderHasMarker(wrappers{j}, diagnosticNames)
+                    found = true;
+                    matchedRoot = wrappers{j};
+                    break;
                 end
             end
+        end
+        rootKey = canonicalizeLight(matchedRoot);
+        if found && ~any(strcmpi(rootKey, seenRoots))
+            seenRoots{end + 1} = rootKey; %#ok<AGROW>
+            roots{end + 1, 1} = matchedRoot; %#ok<AGROW>
         end
     end
 end
 
-function root = immediateChildUnderRoot(folderName, libRoot)
-    folderName = canonicalizeLight(folderName);
-    libRoot = canonicalizeLight(libRoot);
-    root = '';
-    if isempty(folderName) || isempty(libRoot)
+function folders = childFolders(parent)
+    folders = {};
+    try
+        listing = dir(parent);
+    catch
         return;
     end
-    folderNorm = strrep(folderName, '\', '/');
-    libNorm = strrep(libRoot, '\', '/');
-    if strcmpi(folderNorm, libNorm)
-        root = libRoot;
-        return;
+    for i = 1:numel(listing)
+        if listing(i).isdir && ~shouldSkipFolderName(listing(i).name)
+            folders{end + 1, 1} = fullfile( ...
+                listing(i).folder, listing(i).name); %#ok<AGROW>
+        end
     end
-    prefix = [libNorm '/'];
-    if ~startsWith(lower(folderNorm), lower(prefix))
-        return;
-    end
-    rel = folderNorm(numel(prefix) + 1:end);
-    parts = regexp(rel, '/', 'split');
-    if isempty(parts) || isempty(parts{1})
-        root = libRoot;
-    else
-        root = fullfile(libRoot, parts{1});
+end
+
+function tf = folderHasMarker(folderName, diagnosticNames)
+    tf = false;
+    for i = 1:numel(diagnosticNames)
+        if exist(fullfile(folderName, diagnosticNames{i}), 'file') == 2
+            tf = true;
+            return;
+        end
     end
 end
 

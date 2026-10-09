@@ -31,9 +31,10 @@ function varargout = nhpulseConfigureLocalPaths(varargin)
         opts.configFile = fullfile(repoRoot, 'local.paths.json');
     end
 
-    setNHPulsePath('repoRoot', repoRoot, 'includeExternal', false, ...
-        'verbose', false);
-
+    if opts.verbose
+        fprintf('Discovering NHPulse dependencies under %s ...\n', ...
+            fullfile(repoRoot, 'lib'));
+    end
     defaults = makeDefaultConfig(opts);
     existing = loadExistingConfig(opts.configFile);
     if opts.force || isempty(fieldnames(existing))
@@ -53,6 +54,9 @@ function varargout = nhpulseConfigureLocalPaths(varargin)
         setenv('ACS_PATHS_CONFIG', opts.configFile);
     end
 
+    if opts.verbose
+        fprintf('Activating configured MATLAB paths ...\n');
+    end
     setNHPulsePath('repoRoot', repoRoot, 'configFile', opts.configFile, ...
         'includeExternal', true, 'verbose', false);
 
@@ -147,11 +151,10 @@ function cfg = makeDefaultConfig(opts)
         functionFolder('load_nii')}, ...
         localNiftiRoots(:)']);
     cfg.getdpExecutable = firstExistingFile(getdpExecutableCandidates(opts.repoRoot));
-    cfg.gmshExecutable = firstExistingFile({ ...
-        fullfile(opts.repoRoot, 'lib', 'gmsh', executableName('gmsh')), ...
-        fullfile(opts.repoRoot, 'lib', 'gmsh', 'Gmsh.app', 'Contents', 'MacOS', 'gmsh'), ...
-        fullfile(opts.repoRoot, 'lib', 'gmsh', 'Gmsh.app', 'Contents', 'MacOS', 'Gmsh'), ...
-        whichOnPath(executableName('gmsh'))});
+    gmshNames = platformExecutableNames('gmsh');
+    cfg.gmshExecutable = firstExistingFile([ ...
+        localExecutableCandidates(opts.repoRoot, gmshNames); ...
+        {executableOnPath(gmshNames)}]);
     cfg.extraMatlabPaths = {};
 
     demo = struct();
@@ -430,53 +433,54 @@ function folderName = cvxRootFromKeyword(folderName)
     end
 end
 
-function fileName = whichOnPath(programName)
+function fileName = executableOnPath(programNames)
     fileName = '';
-    if ispc
-        [status, txt] = system(sprintf('where "%s"', programName));
-    else
-        [status, txt] = system(sprintf('command -v "%s"', programName));
+    if ischar(programNames) || isstring(programNames)
+        programNames = cellstr(programNames);
     end
-    if status == 0
-        lines = regexp(strtrim(txt), '\r\n|\r|\n', 'split');
-        if ~isempty(lines)
-            fileName = strtrim(lines{1});
+    pathEntries = regexp(getenv('PATH'), regexptranslate('escape', pathsep), ...
+        'split');
+    for i = 1:numel(pathEntries)
+        if isempty(pathEntries{i})
+            continue;
         end
-    end
-end
-
-function name = executableName(baseName)
-    if ispc
-        name = [baseName '.exe'];
-    else
-        name = baseName;
+        for j = 1:numel(programNames)
+            candidate = fullfile(pathEntries{i}, programNames{j});
+            if isExistingFile(candidate)
+                fileName = candidate;
+                return;
+            end
+        end
     end
 end
 
 function candidates = getdpExecutableCandidates(repoRoot)
     names = platformExecutableNames('getdp');
+    candidates = localExecutableCandidates(repoRoot, names);
+    candidates{end + 1, 1} = executableOnPath(names);
+end
+
+function candidates = localExecutableCandidates(repoRoot, names)
     candidates = {};
-    listing = dir(fullfile(repoRoot, 'lib', 'getdp*'));
+    libRoot = fullfile(repoRoot, 'lib');
+    if exist(libRoot, 'dir') ~= 7
+        return;
+    end
+    listing = dir(libRoot);
     for i = 1:numel(listing)
-        if ~listing(i).isdir
+        if ~listing(i).isdir || any(strcmp(listing(i).name, {'.', '..'})) || ...
+                startsWith(listing(i).name, '.')
             continue;
         end
         base = fullfile(listing(i).folder, listing(i).name);
         for j = 1:numel(names)
-            candidates{end + 1} = fullfile(base, 'bin', names{j}); %#ok<AGROW>
-            candidates{end + 1} = fullfile(base, names{j}); %#ok<AGROW>
+            candidates{end + 1, 1} = fullfile(base, names{j}); %#ok<AGROW>
+            candidates{end + 1, 1} = fullfile(base, 'bin', names{j}); %#ok<AGROW>
+            candidates{end + 1, 1} = fullfile( ...
+                base, 'Contents', 'MacOS', names{j}); %#ok<AGROW>
+            candidates{end + 1, 1} = fullfile( ...
+                base, 'Gmsh.app', 'Contents', 'MacOS', names{j}); %#ok<AGROW>
         end
-    end
-    for j = 1:numel(names)
-        recursiveHits = dir(fullfile(repoRoot, 'lib', '**', names{j}));
-        recursiveHits = recursiveHits(~[recursiveHits.isdir]);
-        for i = 1:numel(recursiveHits)
-            candidates{end + 1} = fullfile( ...
-                recursiveHits(i).folder, recursiveHits(i).name); %#ok<AGROW>
-        end
-    end
-    for j = 1:numel(names)
-        candidates{end + 1} = whichOnPath(names{j}); %#ok<AGROW>
     end
 end
 
