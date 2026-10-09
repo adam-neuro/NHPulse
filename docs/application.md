@@ -13,6 +13,13 @@ P = acsPaths();
 app = nhpulseApp(P.outputRoot);
 ```
 
+With no argument, `nhpulseApp` uses the configured `P.outputRoot` when it is
+available. Ordinary app refreshes validate manifest structure, file existence,
+and dependency revisions without rehashing every large artifact. Run
+`nhpulseCheckManifest(manifestFile, 'verifyContent', true)` when a full content
+integrity check is required, or launch the app with
+`nhpulseApp('verifyContent', true)`.
+
 The project field should point to the folder that contains the `manifests/`
 directory and the artifacts referenced by those manifests. Use **Browse** or
 type another root and select **Open**.

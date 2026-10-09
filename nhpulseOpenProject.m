@@ -97,12 +97,42 @@ function project = nhpulseOpenProject(projectRoot, varargin)
 end
 
 function files = findManifestFiles(root)
-    entries = dir(fullfile(root, '**', 'nhpulse-manifest.mat'));
-    files = cell(numel(entries), 1);
-    for i = 1:numel(entries)
-        files{i} = canonicalPath(fullfile(entries(i).folder, entries(i).name));
+    files = {};
+    stack = {root};
+    seen = {};
+    while ~isempty(stack)
+        folder = stack{end};
+        stack(end) = [];
+        key = canonicalPath(folder);
+        if any(strcmpi(key, seen))
+            continue;
+        end
+        seen{end + 1, 1} = key; %#ok<AGROW>
+        manifestFile = fullfile(folder, 'nhpulse-manifest.mat');
+        if exist(manifestFile, 'file') == 2
+            files{end + 1, 1} = canonicalPath(manifestFile); %#ok<AGROW>
+            continue;
+        end
+        try
+            entries = dir(folder);
+        catch
+            continue;
+        end
+        for i = 1:numel(entries)
+            if entries(i).isdir && ~skipManifestSearchFolder(entries(i).name)
+                stack{end + 1, 1} = fullfile( ...
+                    entries(i).folder, entries(i).name); %#ok<AGROW>
+            end
+        end
     end
     files = unique(files, 'stable');
+end
+
+function tf = skipManifestSearchFolder(name)
+    name = char(name);
+    tf = isempty(name) || any(strcmp(name, {'.', '..'})) || ...
+        startsWith(name, '.') || any(strcmpi(name, ...
+        {'lib', 'scratch', 'roast_work', '__MACOSX'}));
 end
 
 function values = flattenArtifacts(run, registry)

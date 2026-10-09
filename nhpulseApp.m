@@ -7,8 +7,8 @@ function app = nhpulseApp(varargin)
 % those tools with explicit manifest-backed inputs.
 %
 % Name-value options:
-%   projectRoot   : project/output root [pwd]
-%   verifyContent : recompute artifact fingerprints while refreshing [true]
+%   projectRoot   : project/output root [configured outputRoot, otherwise pwd]
+%   verifyContent : recompute artifact fingerprints while refreshing [false]
 %   visible       : 'on' or 'off' ['on']
 
 % The returned struct exposes UI handles for testing and automation. Runtime
@@ -718,7 +718,7 @@ function app = nhpulseApp(varargin)
 end
 
 function [projectRoot, opts] = parseInputs(varargin)
-    projectRoot = pwd;
+    projectRoot = defaultProjectRoot();
     if ~isempty(varargin) && (ischar(varargin{1}) || isstring(varargin{1})) && ...
             ~any(strcmpi(char(varargin{1}), {'projectRoot', 'verifyContent', 'visible'}))
         projectRoot = char(varargin{1});
@@ -726,13 +726,28 @@ function [projectRoot, opts] = parseInputs(varargin)
     end
     p = inputParser;
     addParameter(p, 'projectRoot', projectRoot, @(x) ischar(x) || isstring(x));
-    addParameter(p, 'verifyContent', true, @isBoolLike);
+    addParameter(p, 'verifyContent', false, @isBoolLike);
     addParameter(p, 'visible', 'on', @(x) any(strcmpi(char(x), {'on', 'off'})));
     parse(p, varargin{:});
     projectRoot = char(p.Results.projectRoot);
     opts = p.Results;
     opts.verifyContent = logical(opts.verifyContent);
     opts.visible = lower(char(opts.visible));
+end
+
+function projectRoot = defaultProjectRoot()
+    projectRoot = pwd;
+    if exist('acsPaths', 'file') ~= 2
+        return;
+    end
+    try
+        P = acsPaths();
+        if isfield(P, 'outputRoot') && ~isempty(P.outputRoot) && ...
+                exist(P.outputRoot, 'dir') == 7
+            projectRoot = char(P.outputRoot);
+        end
+    catch
+    end
 end
 
 function workflow = workflowDefinitions()
