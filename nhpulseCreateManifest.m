@@ -53,20 +53,74 @@ function value = localEnvironment()
     value.nhpulseRoot = fileparts(mfilename('fullpath'));
     value.gitCommit = '';
     value.gitDirty = [];
-    value.gitDirtyScope = 'tracked-files-only';
-    [status, commit] = system(sprintf('git -C "%s" rev-parse HEAD', ...
-        value.nhpulseRoot));
-    if status == 0
-        value.gitCommit = strtrim(commit);
-        % Do not enumerate untracked files here. Public installs commonly keep
-        % large SPM/CVX/iso2mesh trees under lib/, and walking those trees can
-        % make the first manifest checkpoint appear to hang. Tracked changes
-        % are sufficient to identify whether released NHPulse code was edited.
-        [dirtyStatus, dirtyText] = system(sprintf( ...
-            'git -C "%s" status --porcelain --untracked-files=no', ...
-            value.nhpulseRoot));
-        if dirtyStatus == 0
-            value.gitDirty = ~isempty(strtrim(dirtyText));
+    value.gitDirtyScope = 'not-checked-no-subprocess';
+    value.gitCommit = readGitCommitWithoutProcess(value.nhpulseRoot);
+end
+
+function commit = readGitCommitWithoutProcess(repoRoot)
+% Read Git metadata directly so manifest checkpoints cannot block on Git.
+    commit = '';
+    gitPath = fullfile(repoRoot, '.git');
+    if exist(gitPath, 'file') == 2
+        pointer = strtrim(readSmallTextFile(gitPath));
+        prefix = 'gitdir:';
+        if ~startsWith(lower(pointer), prefix)
+            return;
         end
+        gitPath = strtrim(pointer((numel(prefix) + 1):end));
+        if ~isAbsolutePath(gitPath)
+            gitPath = fullfile(repoRoot, gitPath);
+        end
+    elseif exist(gitPath, 'dir') ~= 7
+        return;
+    end
+
+    headFile = fullfile(gitPath, 'HEAD');
+    if exist(headFile, 'file') ~= 2
+        return;
+    end
+    head = strtrim(readSmallTextFile(headFile));
+    if ~startsWith(head, 'ref:')
+        commit = head;
+        return;
+    end
+
+    refName = strtrim(head(5:end));
+    refFile = fullfile(gitPath, strrep(refName, '/', filesep));
+    if exist(refFile, 'file') == 2
+        commit = strtrim(readSmallTextFile(refFile));
+        return;
+    end
+
+    packedFile = fullfile(gitPath, 'packed-refs');
+    if exist(packedFile, 'file') ~= 2
+        return;
+    end
+    lines = regexp(readSmallTextFile(packedFile), '\r?\n', 'split');
+    suffix = [' ' refName];
+    for i = 1:numel(lines)
+        line = strtrim(lines{i});
+        if ~isempty(line) && line(1) ~= '#' && endsWith(line, suffix)
+            commit = strtrim(line(1:(end - numel(suffix))));
+            return;
+        end
+    end
+end
+
+function text = readSmallTextFile(fileName)
+    fid = fopen(fileName, 'rt');
+    if fid < 0
+        text = '';
+        return;
+    end
+    cleaner = onCleanup(@() fclose(fid));
+    text = fread(fid, 64 * 1024, '*char')';
+end
+
+function tf = isAbsolutePath(value)
+    if ispc
+        tf = ~isempty(regexp(value, '^[A-Za-z]:[\\/]|^\\\\', 'once'));
+    else
+        tf = startsWith(value, filesep);
     end
 end
