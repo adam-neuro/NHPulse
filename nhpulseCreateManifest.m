@@ -53,12 +53,18 @@ function value = localEnvironment()
     value.nhpulseRoot = fileparts(mfilename('fullpath'));
     value.gitCommit = '';
     value.gitDirty = [];
+    value.gitDirtyScope = 'tracked-files-only';
     [status, commit] = system(sprintf('git -C "%s" rev-parse HEAD', ...
         value.nhpulseRoot));
     if status == 0
         value.gitCommit = strtrim(commit);
+        % Do not enumerate untracked files here. Public installs commonly keep
+        % large SPM/CVX/iso2mesh trees under lib/, and walking those trees can
+        % make the first manifest checkpoint appear to hang. Tracked changes
+        % are sufficient to identify whether released NHPulse code was edited.
         [dirtyStatus, dirtyText] = system(sprintf( ...
-            'git -C "%s" status --porcelain', value.nhpulseRoot));
+            'git -C "%s" status --porcelain --untracked-files=no', ...
+            value.nhpulseRoot));
         if dirtyStatus == 0
             value.gitDirty = ~isempty(strtrim(dirtyText));
         end
