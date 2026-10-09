@@ -9,6 +9,7 @@ function app = nhpulseApp(varargin)
 % Name-value options:
 %   projectRoot   : project/output root [configured outputRoot, otherwise pwd]
 %   verifyContent : recompute artifact fingerprints while refreshing [false]
+%   discoverLegacy: 'auto', 'always', or 'never' ['auto']
 %   visible       : 'on' or 'off' ['on']
 
 % The returned struct exposes UI handles for testing and automation. Runtime
@@ -132,7 +133,16 @@ function app = nhpulseApp(varargin)
         try
             project = nhpulseOpenProject(projectField.Value, ...
                 'verifyContent', opts.verifyContent, ...
-                'discoverLegacy', true, 'verbose', false);
+                'discoverLegacy', false, 'verbose', false);
+            scanLegacy = strcmp(opts.discoverLegacy, 'always') || ...
+                (strcmp(opts.discoverLegacy, 'auto') && isempty(project.runs));
+            if scanLegacy
+                setStatus('Checking for existing unregistered outputs...');
+                drawnow limitrate;
+                project = nhpulseOpenProject(projectField.Value, ...
+                    'verifyContent', opts.verifyContent, ...
+                    'discoverLegacy', true, 'verbose', false);
+            end
             projectField.Value = project.projectRoot;
             state = fig.UserData;
             state.project = project;
@@ -145,6 +155,8 @@ function app = nhpulseApp(varargin)
             updateSummary();
             setStatus(sprintf('Opened %s', project.projectRoot));
         catch ME
+            fprintf(2, 'NHPulse app could not open project:\n%s\n', ...
+                getReport(ME, 'extended', 'hyperlinks', 'off'));
             clearProjectDisplay();
             if showErrors && strcmp(fig.Visible, 'on')
                 uialert(fig, ME.message, 'Could not open project');
@@ -720,18 +732,23 @@ end
 function [projectRoot, opts] = parseInputs(varargin)
     projectRoot = defaultProjectRoot();
     if ~isempty(varargin) && (ischar(varargin{1}) || isstring(varargin{1})) && ...
-            ~any(strcmpi(char(varargin{1}), {'projectRoot', 'verifyContent', 'visible'}))
+            ~any(strcmpi(char(varargin{1}), ...
+            {'projectRoot', 'verifyContent', 'discoverLegacy', 'visible'}))
         projectRoot = char(varargin{1});
         varargin(1) = [];
     end
     p = inputParser;
     addParameter(p, 'projectRoot', projectRoot, @(x) ischar(x) || isstring(x));
     addParameter(p, 'verifyContent', false, @isBoolLike);
+    addParameter(p, 'discoverLegacy', 'auto', ...
+        @(x) ischar(x) || isstring(x));
     addParameter(p, 'visible', 'on', @(x) any(strcmpi(char(x), {'on', 'off'})));
     parse(p, varargin{:});
     projectRoot = char(p.Results.projectRoot);
     opts = p.Results;
     opts.verifyContent = logical(opts.verifyContent);
+    opts.discoverLegacy = validatestring(lower(char(opts.discoverLegacy)), ...
+        {'auto', 'always', 'never'}, mfilename, 'discoverLegacy');
     opts.visible = lower(char(opts.visible));
 end
 
@@ -832,7 +849,7 @@ function status = stageStatus(run, project, definition)
     end
     mask = strcmp({project.artifacts.runId}, run.runId);
     artifacts = project.artifacts(mask);
-    matched = false(size(artifacts));
+    matched = false(1, numel(artifacts));
     for i = 1:numel(definition.artifactKeys)
         matched = matched | strcmp({artifacts.artifactId}, ...
             definition.artifactKeys{i});

@@ -16,12 +16,18 @@ function report = nhpulseTestApplicationShell(varargin)
         'runLabel', 'Subject A test run', ...
         'runMetadata', struct('subjectId', 'SubjectA'), ...
         'fingerprintMode', 'metadata');
+    segmentationFile = fullfile(runRoot, 'toy_masks.nii');
+    writeBytes(segmentationFile, uint8(25:30));
+    nhpulseRecordArtifact(runRoot, 'subject-a-run', 'segmentation', ...
+        'nhpulse.segmentation', segmentationFile, ...
+        'parentKeys', {'anatomy'}, 'fingerprintMode', 'metadata');
     legacyRoot = fullfile(root, 'outputs', 'LegacySubject');
     mkdir(legacyRoot);
     legacyFile = fullfile(legacyRoot, 'LegacySubject_T1.nii');
     writeBytes(legacyFile, uint8(31:54));
 
-    app = nhpulseApp(root, 'verifyContent', false, 'visible', 'off');
+    app = nhpulseApp(root, 'verifyContent', false, ...
+        'discoverLegacy', 'always', 'visible', 'off');
     figureCleaner = onCleanup(@() closeIfValid(app.Figure));
     drawnow;
     data = app.ArtifactTable.Data;
@@ -35,8 +41,8 @@ function report = nhpulseTestApplicationShell(varargin)
         'LegacySubject'));
     report.runListed = any(contains(app.RunDropDown.Items, 'subject-a-run'));
     report.workflowPresent = numel(app.WorkflowList.Items) >= 10;
-    report.artifactShown = height(data) == 1 && ...
-        strcmp(data.Status{1}, 'current');
+    report.artifactShown = height(data) == 2 && ...
+        all(strcmp(data.Status, 'current'));
     app.SubjectDropDown.Value = 'LegacySubject';
     app.SubjectDropDown.ValueChangedFcn(app.SubjectDropDown, []);
     legacyData = app.ArtifactTable.Data;

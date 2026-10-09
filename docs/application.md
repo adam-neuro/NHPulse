@@ -52,4 +52,7 @@ walkthrough APIs for now. Those stages still appear in workflow navigation and
 artifact status reporting.
 
 Current smoke tests and walkthroughs write manifests automatically. The import
-path is primarily for products created by older NHPulse versions.
+path is primarily for products created by older NHPulse versions. The default
+`discoverLegacy='auto'` scans for these files only when the selected project has
+no manifests. To inspect a mixed project containing both registered and older
+outputs, launch `nhpulseApp(P.outputRoot, 'discoverLegacy', 'always')`.
