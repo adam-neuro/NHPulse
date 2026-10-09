@@ -15,6 +15,7 @@ function out = acsShowTesStimulationParameters(sourceIn, varargin)
 %   sparseResult        : explicit sparse result struct/MAT file ['']
 %   layout              : explicit combined layout struct/MAT file ['']
 %   eegPrediction       : explicit EEG prediction struct/MAT file ['']
+%   projectContext      : manifest-backed NHPulse project context [struct()]
 %   searchRoot          : folder searched for tags ['']
 %   activeElectrodeCount: filter sparse results by requested count [[]]
 %   currentThresholdMa  : current threshold for active channels [1e-6]
@@ -41,11 +42,10 @@ function out = acsShowTesStimulationParameters(sourceIn, varargin)
     end
 
     opts = parseInputs(varargin{:});
-    addLocalDependencies();
-
     state = emptyState();
     hasExplicitProducts = ~isempty(opts.sparseResult) || ...
-        ~isempty(opts.layout) || ~isempty(opts.eegPrediction);
+        ~isempty(opts.layout) || ~isempty(opts.eegPrediction) || ...
+        ~isempty(opts.projectContext);
     if isempty(sourceIn)
         if ~hasExplicitProducts
             sourceFile = pickReviewFile(opts);
@@ -94,6 +94,8 @@ function opts = parseInputs(varargin)
     addParameter(p, 'sparseResult', [], @(x) true);
     addParameter(p, 'layout', [], @(x) true);
     addParameter(p, 'eegPrediction', [], @(x) true);
+    addParameter(p, 'projectContext', struct(), ...
+        @(x) isempty(x) || isstruct(x));
     addParameter(p, 'searchRoot', '', @(x) ischar(x) || isstring(x));
     addParameter(p, 'activeElectrodeCount', [], ...
         @(x) isempty(x) || (isnumeric(x) && isscalar(x) && isfinite(x) && x >= 1));
@@ -117,6 +119,7 @@ function opts = parseInputs(varargin)
     parse(p, varargin{:});
 
     opts = p.Results;
+    validateProjectContext(opts.projectContext);
     opts.searchRoot = expandUserPath(char(opts.searchRoot));
     opts.activeElectrodeCount = double(opts.activeElectrodeCount);
     opts.currentThresholdMa = double(opts.currentThresholdMa);
@@ -136,7 +139,8 @@ function opts = parseInputs(varargin)
 end
 
 function names = inputParameterNames()
-    names = {'sparseResult', 'layout', 'eegPrediction', 'searchRoot', ...
+    names = {'sparseResult', 'layout', 'eegPrediction', 'projectContext', ...
+        'searchRoot', ...
         'activeElectrodeCount', 'currentThresholdMa', 'currentToleranceMa', ...
         'labelMode', 'showParameterFigure', 'showField', ...
         'showEegTopography', 'fieldOptions', 'topographyOptions', ...
@@ -174,19 +178,6 @@ function mode = normalizeAutoMode(value, name)
             error('acsShowTesStimulationParameters:BadMode', ...
                 '%s must be ''auto'', ''always'', or ''never''.', name);
     end
-end
-
-function addLocalDependencies()
-    utilityRoot = fileparts(mfilename('fullpath'));
-    repoRoot = fileparts(utilityRoot);
-    if exist('setNHPulsePath', 'file') == 2
-        try
-            setNHPulsePath('repoRoot', repoRoot, 'verbose', false);
-            return;
-        catch
-        end
-    end
-    addpath(utilityRoot);
 end
 
 function state = emptyState()
@@ -549,15 +540,86 @@ function state = completeState(state, opts)
     state.eegPrediction = choosePrediction(state.eegPredictionCandidates, ...
         state.layout, opts);
 
-    if isempty(state.layout) && ~isempty(state.sparse)
+    if ~isempty(opts.projectContext)
+        state = ingestManifestArtifactIfNeeded(state, opts, ...
+            'combined-layout', 'layout');
+        state = ingestManifestArtifactIfNeeded(state, opts, ...
+            'optimized-montage', 'sparse');
+        if ~strcmp(opts.showEegTopography, 'never')
+            state = ingestManifestArtifactIfNeeded(state, opts, ...
+                'eeg-prediction', 'eegPrediction');
+        end
+        state.layout = chooseLayout(state.layoutCandidates);
+        state.sparse = chooseSparse(state.sparseCandidates, state.layout, opts);
+        state.eegPrediction = choosePrediction( ...
+            state.eegPredictionCandidates, state.layout, opts);
+        return;
+    end
+
+    if isempty(state.layout) && ~isempty(state.sparse) && ...
+            ~strcmp(opts.showEegTopography, 'never')
         state.layout = findLayoutMatchingSparse(state.sparse, opts);
     end
-    if isempty(state.sparse) && ~isempty(state.layout)
+    if isempty(state.sparse) && ~isempty(state.layout) && ...
+            ~strcmp(opts.showField, 'never')
         state.sparse = findSparseMatchingLayout(state.layout, opts);
     end
-    if isempty(state.eegPrediction)
+    if isempty(state.eegPrediction) && ...
+            ~strcmp(opts.showEegTopography, 'never')
         state.eegPrediction = findPredictionMatchingLayoutOrSparse( ...
             state.layout, state.sparse, opts);
+    end
+end
+
+function state = ingestManifestArtifactIfNeeded(state, opts, key, kind)
+    if ~manifestKindMissing(state, kind)
+        return;
+    end
+    switch kind
+        case 'layout'
+            expectedType = 'nhpulse.combinedLayout';
+        case 'sparse'
+            expectedType = 'nhpulse.optimizedMontage';
+        case 'eegPrediction'
+            expectedType = 'nhpulse.eegPrediction';
+        otherwise
+            expectedType = {};
+    end
+    try
+        handle = nhpulseResolveArtifact(opts.projectContext, key, ...
+            'expectedType', expectedType, 'requireCurrent', true, ...
+            'verifyContent', false);
+    catch ME
+        if strcmp(ME.identifier, 'nhpulseResolveArtifact:NotFound')
+            return;
+        end
+        rethrow(ME);
+    end
+    state = ingestFile(state, handle.path, ['manifest:' key]);
+end
+
+function tf = manifestKindMissing(state, kind)
+    switch kind
+        case 'layout'
+            tf = isempty(state.layoutCandidates);
+        case 'sparse'
+            tf = isempty(state.sparseCandidates);
+        case 'eegPrediction'
+            tf = isempty(state.eegPredictionCandidates);
+        otherwise
+            tf = true;
+    end
+end
+
+function validateProjectContext(context)
+    if isempty(context)
+        return;
+    end
+    if ~isstruct(context) || ~isfield(context, 'schema') || ...
+            ~strcmp(context.schema, 'nhpulse.projectContext') || ...
+            ~isfield(context, 'manifestFile')
+        error('acsShowTesStimulationParameters:BadProjectContext', ...
+            'projectContext must come from nhpulseCreateProjectContext.');
     end
 end
 
