@@ -65,8 +65,14 @@ function app = nhpulseApp(varargin)
     objectiveArea = uitextarea(navigation, 'Editable', 'off', ...
         'Value', {workflow(1).description}, ...
         'BackgroundColor', [0.98 0.98 0.98]);
-    launchButton = uibutton(navigation, 'push', 'Text', 'Select a run', ...
+    stageActions = uigridlayout(navigation, [1 2]);
+    stageActions.ColumnWidth = {'1x', 104};
+    stageActions.Padding = [0 0 0 0];
+    stageActions.ColumnSpacing = 6;
+    launchButton = uibutton(stageActions, 'push', 'Text', 'Select a run', ...
         'Enable', 'off', 'ButtonPushedFcn', @onLaunchStage);
+    settingsButton = uibutton(stageActions, 'push', 'Text', 'Settings...', ...
+        'Enable', 'off', 'ButtonPushedFcn', @onStageSettings);
 
     artifactPanel = uipanel(root, 'Title', 'Artifacts');
     artifactPanel.Layout.Row = 2;
@@ -102,13 +108,15 @@ function app = nhpulseApp(varargin)
 
     state = struct('options', opts, 'project', [], 'workflow', workflow, ...
         'runMap', zeros(0, 1), 'selectedArtifactRow', [], ...
-        'artifactRows', repmat(emptyArtifact(), 0, 1));
+        'artifactRows', repmat(emptyArtifact(), 0, 1), ...
+        'stageConfigs', struct(), 'stageSettingInfo', struct());
     fig.UserData = state;
 
     app = struct('Figure', fig, 'ProjectField', projectField, ...
         'SubjectDropDown', subjectDropDown, 'RunDropDown', runDropDown, ...
         'WorkflowList', workflowList, 'ArtifactTable', artifactTable, ...
-        'LaunchButton', launchButton, 'RefreshButton', refreshButton, ...
+        'LaunchButton', launchButton, 'SettingsButton', settingsButton, ...
+        'RefreshButton', refreshButton, ...
         'ImportButton', importButton, 'StatusLabel', statusLabel);
     refreshProject(false);
 
@@ -364,13 +372,68 @@ function app = nhpulseApp(varargin)
         hasRun = ~isempty(selectedRun());
         launchButton.Text = item.buttonLabel;
         launchButton.Enable = onOff(hasRun && ~isempty(item.action));
+        settingsButton.Enable = onOff(hasRun && hasStageSettings(item.key));
+        settingsButton.Text = settingsButtonText(item.key);
         if ~hasRun
             if isLegacySelection()
                 launchButton.Text = 'Import outputs first';
             else
                 launchButton.Text = 'Select a run';
             end
+            settingsButton.Enable = 'off';
         end
+    end
+
+    function onStageSettings(~, ~)
+        idx = selectedWorkflowIndex();
+        item = workflow(idx);
+        if ~hasStageSettings(item.key), return; end
+        state = fig.UserData;
+        field = matlab.lang.makeValidName(item.key);
+        current = struct();
+        preset = nhpulseStageSettings(item.key).defaultPreset;
+        if isfield(state.stageConfigs, field)
+            current = state.stageConfigs.(field);
+        end
+        if isfield(state.stageSettingInfo, field)
+            preset = state.stageSettingInfo.(field).preset;
+        end
+        [updated, selection] = nhpulseEditStageSettings(item.key, current, ...
+            'preset', preset);
+        if ~selection.accepted, return; end
+        state = fig.UserData;
+        state.stageConfigs.(field) = updated;
+        state.stageSettingInfo.(field) = selection;
+        fig.UserData = state;
+        settingsButton.Text = settingsButtonText(item.key);
+        setStatus(sprintf('%s settings: %s preset with current overrides', ...
+            item.name, selection.presetLabel));
+    end
+
+    function config = stageConfig(stageKey)
+        state = fig.UserData;
+        field = matlab.lang.makeValidName(stageKey);
+        if isfield(state.stageConfigs, field)
+            config = state.stageConfigs.(field);
+        else
+            [config, info] = nhpulseResolveStageSettings(stageKey);
+            state.stageConfigs.(field) = config;
+            state.stageSettingInfo.(field) = info;
+            fig.UserData = state;
+        end
+    end
+
+    function textValue = settingsButtonText(stageKey)
+        textValue = 'Settings...';
+        if ~hasStageSettings(stageKey), return; end
+        state = fig.UserData;
+        field = matlab.lang.makeValidName(stageKey);
+        if isfield(state.stageSettingInfo, field)
+            preset = state.stageSettingInfo.(field).preset;
+        else
+            preset = nhpulseStageSettings(stageKey).defaultPreset;
+        end
+        textValue = ['Settings: ' preset];
     end
 
     function idx = selectedWorkflowIndex()
@@ -443,27 +506,23 @@ function app = nhpulseApp(varargin)
                 scalp = requireArtifact(context, {'full-head-scalp'}, ...
                     {'nhpulse.scalpModel'});
                 nhpulseServiceCropScalp(context, struct('scalp', scalp), ...
-                    struct('cropPlaneMode', 'select', 'force', true, ...
-                    'showFigures', true, 'saveFigures', true));
+                    stageConfig('crop'));
             case 'exclusions'
                 scalp = requireArtifact(context, {'printable-scalp'}, ...
                     {'nhpulse.scalpModel'});
                 nhpulseServiceDefineExclusions(context, struct('scalp', scalp), ...
-                    struct('editMode', 'always', 'force', true, ...
-                    'showFigures', true, 'saveFigures', true));
+                    stageConfig('exclusions'));
             case 'fiducials'
                 scalp = requireArtifact(context, {'full-head-scalp'}, ...
                     {'nhpulse.scalpModel'});
                 nhpulseServiceDefineFiducials(context, struct('scalp', scalp), ...
-                    struct('editMode', 'always', 'force', true, ...
-                    'showFigures', true, 'saveFigures', true));
+                    stageConfig('fiducials'));
             case 'target'
                 anatomy = requireArtifact(context, {'anatomy'}, {'nhpulse.anatomy'});
                 segmentation = requireArtifact(context, {'segmentation'}, ...
                     {'nhpulse.segmentation'});
                 nhpulseServiceSelectTarget(context, struct('anatomy', anatomy, ...
-                    'segmentation', segmentation), struct('showFigures', true, ...
-                    'saveFigures', true));
+                    'segmentation', segmentation), stageConfig('target'));
             case 'headpost'
                 trace = requireArtifact(context, {'implant-trace'}, ...
                     {'nhpulse.implantTrace'});
@@ -471,11 +530,14 @@ function app = nhpulseApp(varargin)
                     {'nhpulse.scalpModel'});
                 segmentation = requireArtifact(context, {'segmentation'}, ...
                     {'nhpulse.segmentation'});
+                implantConfig = stageConfig('implant');
+                if ~isfield(implantConfig, 'placementOptions')
+                    implantConfig.placementOptions = struct('reuseExistingPose', true);
+                elseif ~isfield(implantConfig.placementOptions, 'reuseExistingPose')
+                    implantConfig.placementOptions.reuseExistingPose = true;
+                end
                 nhpulseServicePlaceHeadpost(context, struct('source', trace, ...
-                    'scalp', scalp, 'segmentation', segmentation), ...
-                    struct('interactive', true, 'force', true, ...
-                    'showFigures', true, 'saveFigures', true, ...
-                    'placementOptions', struct('reuseExistingPose', true)));
+                    'scalp', scalp, 'segmentation', segmentation), implantConfig);
             case 'retention'
                 layout = requireArtifact(context, {'combined-layout'}, ...
                     {'nhpulse.combinedLayout'});
@@ -489,8 +551,7 @@ function app = nhpulseApp(varargin)
                     'anatomicalExclusion', exclusion, ...
                     'implantExclusions', {implants});
                 nhpulseServicePlanRetention(context, inputs, ...
-                    struct('editMode', 'always', 'force', true, ...
-                    'showFigures', true, 'saveFigures', true));
+                    stageConfig('retention'));
             case 'manufacturingInspector'
                 design = requireArtifact(context, {'manufacturing-design'}, ...
                     {'nhpulse.manufacturingGeometry'});
@@ -687,6 +748,7 @@ function app = nhpulseApp(varargin)
         artifactTable.Data = emptyArtifactTable();
         summaryLabel.Text = 'Project unavailable.';
         launchButton.Enable = 'off';
+        settingsButton.Enable = 'off';
         inspectButton.Enable = 'off';
         artifactFolderButton.Enable = 'off';
         importButton.Enable = 'off';
@@ -696,7 +758,7 @@ function app = nhpulseApp(varargin)
         if ~isgraphics(fig), return; end
         controls = {browseButton, openButton, refreshButton, folderButton, ...
             subjectDropDown, runDropDown, workflowList, launchButton, ...
-            inspectButton, artifactFolderButton, importButton};
+            settingsButton, inspectButton, artifactFolderButton, importButton};
         if tf
             fig.Pointer = 'watch';
             for i = 1:numel(controls), controls{i}.Enable = 'off'; end
@@ -726,6 +788,18 @@ function app = nhpulseApp(varargin)
 
     function setStatus(message)
         if isgraphics(statusLabel), statusLabel.Text = message; end
+    end
+end
+
+function tf = hasStageSettings(stageKey)
+    tf = false;
+    try
+        nhpulseStageSettings(stageKey);
+        tf = true;
+    catch ME
+        if ~strcmp(ME.identifier, 'nhpulseStageSettings:UnknownStage')
+            rethrow(ME);
+        end
     end
 end
 

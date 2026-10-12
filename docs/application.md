@@ -39,6 +39,9 @@ type another root and select **Open**.
 - **Inspect selected** opens an existing specialized inspector when one is
   registered for that artifact type.
 - **Open file folder** reveals the selected artifact without changing it.
+- **Settings** opens the shared stage-settings editor when the selected stage
+  has configurable presets. The button shows the active preset after settings
+  have been applied.
 
 Interactive launch buttons currently cover printer-bed cropping, anatomical
 exclusions, model fiducials, target selection, headpost placement, Velcro
@@ -50,6 +53,40 @@ The shell intentionally leaves long or highly configurable operations, such as
 lead-field generation and montage optimization, in the documented service and
 walkthrough APIs for now. Those stages still appear in workflow navigation and
 artifact status reporting.
+
+## Stage settings
+
+The application exposes common decisions first and keeps uncommon engine
+arguments in an **Advanced options** JSON object. Settings are resolved in this
+order:
+
+1. stage defaults;
+2. the selected preset;
+3. values edited in the dialog;
+4. advanced engine overrides.
+
+Settings currently apply to the next launch in the open application session.
+They do not rewrite accepted artifacts merely by being edited. When the stage
+runs, the resolved configuration is returned with the service result and the
+new artifacts are registered normally.
+
+The same system can be used without the application:
+
+```matlab
+definition = nhpulseStageSettings('crop');
+cfg = nhpulseResolveStageSettings('crop', ...
+    'preset', 'detailed', ...
+    'overrides', struct('showFigures', true));
+
+[cfg, selection] = nhpulseEditStageSettings('retention', struct(), ...
+    'preset', 'guided');
+```
+
+Schemas are explicit rather than inferred from low-level `inputParser`
+definitions. Each schema supplies user-facing labels, help, choices, units,
+defaults, presets, and the name of the advanced-options structure. Adding a
+new stage to the shared editor therefore requires one schema entry without
+writing another settings GUI.
 
 Current smoke tests and walkthroughs write manifests automatically. The import
 path is primarily for products created by older NHPulse versions. The default

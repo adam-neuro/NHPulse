@@ -43,6 +43,12 @@ function report = nhpulseTestApplicationShell(varargin)
     report.workflowPresent = numel(app.WorkflowList.Items) >= 10;
     report.artifactShown = height(data) == 2 && ...
         all(strcmp(data.Status, 'current'));
+    cropItem = find(startsWith(app.WorkflowList.Items, ...
+        'Printable crop  ['), 1);
+    app.WorkflowList.Value = app.WorkflowList.Items{cropItem};
+    app.WorkflowList.ValueChangedFcn(app.WorkflowList, []);
+    report.settingsButtonPresent = isgraphics(app.SettingsButton) && ...
+        strcmp(app.SettingsButton.Enable, 'on');
     app.SubjectDropDown.Value = 'LegacySubject';
     app.SubjectDropDown.ValueChangedFcn(app.SubjectDropDown, []);
     legacyData = app.ArtifactTable.Data;
