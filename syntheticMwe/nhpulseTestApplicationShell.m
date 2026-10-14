@@ -42,7 +42,7 @@ function report = nhpulseTestApplicationShell(varargin)
     report.runListed = any(contains(app.RunDropDown.Items, 'subject-a-run'));
     report.workflowPresent = numel(app.WorkflowList.Items) >= 10;
     report.artifactShown = height(data) == 2 && ...
-        all(strcmp(data.Status, 'current'));
+        all(strcmp(data.Status, 'current (unchecked)'));
     cropItem = find(startsWith(app.WorkflowList.Items, ...
         'Printable crop  ['), 1);
     app.WorkflowList.Value = app.WorkflowList.Items{cropItem};

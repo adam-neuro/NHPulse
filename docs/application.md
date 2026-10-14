@@ -20,6 +20,12 @@ and dependency revisions without rehashing every large artifact. Run
 integrity check is required, or launch the app with
 `nhpulseApp('verifyContent', true)`.
 
+Artifacts that pass the default fast check are labeled `current (unchecked)`
+until their contents have been fingerprint-verified. Stage launchers require
+fully verified current inputs. If launch-time verification finds a changed
+file, the application refreshes the table with the resulting stale dependency
+chain.
+
 The project field should point to the folder that contains the `manifests/`
 directory and the artifacts referenced by those manifests. Use **Browse** or
 type another root and select **Open**.

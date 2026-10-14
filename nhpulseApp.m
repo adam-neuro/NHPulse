@@ -109,7 +109,8 @@ function app = nhpulseApp(varargin)
     state = struct('options', opts, 'project', [], 'workflow', workflow, ...
         'runMap', zeros(0, 1), 'selectedArtifactRow', [], ...
         'artifactRows', repmat(emptyArtifact(), 0, 1), ...
-        'stageConfigs', struct(), 'stageSettingInfo', struct());
+        'stageConfigs', struct(), 'stageSettingInfo', struct(), ...
+        'contentVerified', false);
     fig.UserData = state;
 
     app = struct('Figure', fig, 'ProjectField', projectField, ...
@@ -135,13 +136,18 @@ function app = nhpulseApp(varargin)
         refreshProject(false);
     end
 
-    function refreshProject(showErrors)
+    function refreshProject(showErrors, verifyOverride)
+        if nargin < 2
+            verifyNow = opts.verifyContent;
+        else
+            verifyNow = logical(verifyOverride);
+        end
         previousSelection = captureProjectSelection();
         setBusy(true, 'Reading project manifests and artifact status...');
         cleanup = onCleanup(@() setBusy(false, 'Ready'));
         try
             project = nhpulseOpenProject(projectField.Value, ...
-                'verifyContent', opts.verifyContent, ...
+                'verifyContent', verifyNow, ...
                 'discoverLegacy', false, 'verbose', false);
             scanLegacy = strcmp(opts.discoverLegacy, 'always') || ...
                 (strcmp(opts.discoverLegacy, 'auto') && isempty(project.runs));
@@ -149,12 +155,13 @@ function app = nhpulseApp(varargin)
                 setStatus('Checking for existing unregistered outputs...');
                 drawnow limitrate;
                 project = nhpulseOpenProject(projectField.Value, ...
-                    'verifyContent', opts.verifyContent, ...
+                    'verifyContent', verifyNow, ...
                     'discoverLegacy', true, 'verbose', false);
             end
             projectField.Value = project.projectRoot;
             state = fig.UserData;
             state.project = project;
+            state.contentVerified = verifyNow;
             state.selectedArtifactRow = [];
             fig.UserData = state;
             updateSubjectSelector();
@@ -308,7 +315,8 @@ function app = nhpulseApp(varargin)
                 'Select a registered run before launching a stage.');
         end
         context = nhpulseCreateProjectContext(run.manifest.projectRoot, run.runId, ...
-            'runLabel', run.runLabel, 'metadata', run.manifest.metadata);
+            'runLabel', run.runLabel, 'metadata', run.manifest.metadata, ...
+            'manifestFile', run.manifestFile);
     end
 
     function updateArtifactTable()
@@ -331,8 +339,12 @@ function app = nhpulseApp(varargin)
         else
             data = cell(numel(rows), 5);
             for i = 1:numel(rows)
+                statusText = rows(i).status;
+                if strcmp(statusText, 'current') && ~state.contentVerified
+                    statusText = 'current (unchecked)';
+                end
                 data(i, :) = {rows(i).stage, shortType(rows(i).type), ...
-                    rows(i).label, rows(i).status, rows(i).path};
+                    rows(i).label, statusText, rows(i).path};
             end
             artifactTable.Data = cell2table(data, 'VariableNames', ...
                 {'Stage', 'Type', 'Label', 'Status', 'Path'});
@@ -511,8 +523,15 @@ function app = nhpulseApp(varargin)
         artifacts = state.project.artifacts(mask);
         current = nnz(strcmp({artifacts.status}, 'current'));
         attention = numel(artifacts) - current;
-        summaryLabel.Text = sprintf('%s | %d current artifact(s), %d needing attention', ...
-            runSubject(run), current, attention);
+        if state.contentVerified
+            summaryLabel.Text = sprintf( ...
+                '%s | %d current artifact(s), %d needing attention', ...
+                runSubject(run), current, attention);
+        else
+            summaryLabel.Text = sprintf([ ...
+                '%s | %d graph-current artifact(s), %d needing attention | ', ...
+                'content unchecked'], runSubject(run), current, attention);
+        end
     end
 
     function onLaunchStage(~, ~)
@@ -540,6 +559,10 @@ function app = nhpulseApp(varargin)
             if isCancellationError(ME)
                 finalStatus = [item.name ' canceled; no artifact was changed.'];
             elseif strcmp(fig.Visible, 'on')
+                if strcmp(ME.identifier, ...
+                        'nhpulseResolveArtifact:ArtifactNotCurrent')
+                    refreshProject(false, true);
+                end
                 uialert(fig, friendlyLaunchError(ME, item), ...
                     [item.name ' unavailable']);
             else

@@ -15,6 +15,8 @@ function [manifest, artifact, files] = nhpulseRecordArtifact( ...
 %   parentKeys      : earlier artifact keys in this run [{}]
 %   parentRoles     : one role or one role per parent ['input']
 %   metadata        : artifact metadata [struct()]
+%   manifestFile    : explicit manifest MAT path [standard project path]
+%   allowSharedFile : allow another artifact key to use this file [false]
 %   fingerprintMode : auto, sha256, or metadata ['auto']
 %   verbose         : print checkpoint information [false]
 
@@ -28,6 +30,8 @@ function [manifest, artifact, files] = nhpulseRecordArtifact( ...
     addParameter(p, 'parentRoles', 'input', ...
         @(x) ischar(x) || isstring(x) || iscell(x));
     addParameter(p, 'metadata', struct(), @isstruct);
+    addParameter(p, 'manifestFile', '', @(x) ischar(x) || isstring(x));
+    addParameter(p, 'allowSharedFile', false, @isBoolLike);
     addParameter(p, 'fingerprintMode', 'auto', ...
         @(x) ischar(x) || isstring(x));
     addParameter(p, 'verbose', false, @isBoolLike);
@@ -38,17 +42,37 @@ function [manifest, artifact, files] = nhpulseRecordArtifact( ...
     runId = safeKey(runId);
     artifactKey = safeKey(artifactKey);
     fileName = resolveArtifactFile(fileName);
-    manifestBase = fullfile(projectRoot, 'manifests', runId, ...
-        'nhpulse-manifest');
-    manifestFile = [manifestBase '.mat'];
+    manifestFile = char(opts.manifestFile);
+    if isempty(manifestFile)
+        manifestBase = fullfile(projectRoot, 'manifests', runId, ...
+            'nhpulse-manifest');
+        manifestFile = [manifestBase '.mat'];
+    else
+        manifestFile = canonicalPath(manifestFile);
+        [manifestFolder, manifestStem, manifestExt] = fileparts(manifestFile);
+        if ~strcmpi(manifestExt, '.mat')
+            error('nhpulseRecordArtifact:BadManifestFile', ...
+                'manifestFile must name a MAT manifest: %s', manifestFile);
+        end
+        manifestBase = fullfile(manifestFolder, manifestStem);
+    end
     if exist(manifestFile, 'file') == 2
         manifest = nhpulseLoadManifest(manifestFile);
+        if ~strcmp(char(manifest.runId), runId)
+            error('nhpulseRecordArtifact:RunIdMismatch', ...
+                'Manifest %s belongs to run %s, not %s.', ...
+                manifestFile, char(manifest.runId), runId);
+        end
     else
         manifest = nhpulseCreateManifest(projectRoot, opts.runLabel, ...
             'runId', runId, 'metadata', opts.runMetadata);
     end
     manifest.projectRoot = projectRoot;
     manifest.metadata = mergeStructs(manifest.metadata, opts.runMetadata);
+
+    if ~logical(opts.allowSharedFile)
+        assertFileIsUnique(manifest, artifactKey, fileName);
+    end
 
     parentKeys = normalizeCellstr(opts.parentKeys);
     parentRoles = normalizeRoles(opts.parentRoles, numel(parentKeys));
@@ -118,6 +142,38 @@ function artifact = findArtifactByKey(manifest, key)
         artifact = [];
     else
         artifact = manifest.artifacts(idx);
+    end
+end
+
+function assertFileIsUnique(manifest, artifactKey, fileName)
+    for i = 1:numel(manifest.artifacts)
+        candidate = manifest.artifacts(i);
+        if strcmp(char(candidate.artifactId), artifactKey) || ...
+                (isstruct(candidate.metadata) && ...
+                isfield(candidate.metadata, 'artifactKey') && ...
+                strcmp(char(candidate.metadata.artifactKey), artifactKey))
+            continue;
+        end
+        candidateFile = nhpulseManifestInternal('resolvePath', ...
+            manifest, candidate);
+        if pathsEqual(candidateFile, fileName)
+            error('nhpulseRecordArtifact:SharedArtifactFile', ...
+                ['Artifact "%s" cannot use %s because artifact "%s" ', ...
+                 'already uses that file. Manifest artifacts are immutable ', ...
+                 'checkpoints; save a uniquely named snapshot before ', ...
+                 'registering the new artifact.'], ...
+                artifactKey, fileName, char(candidate.artifactId));
+        end
+    end
+end
+
+function tf = pathsEqual(a, b)
+    a = canonicalPath(a);
+    b = canonicalPath(b);
+    if ispc
+        tf = strcmpi(a, b);
+    else
+        tf = strcmp(a, b);
     end
 end
 

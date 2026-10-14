@@ -8,6 +8,7 @@ function context = nhpulseCreateProjectContext(projectRoot, runId, varargin)
     p = inputParser;
     addParameter(p, 'runLabel', runId, @(x) ischar(x) || isstring(x));
     addParameter(p, 'metadata', struct(), @isstruct);
+    addParameter(p, 'manifestFile', '', @(x) ischar(x) || isstring(x));
     parse(p, varargin{:});
     projectRoot = canonicalPath(projectRoot);
     if exist(projectRoot, 'dir') ~= 7
@@ -22,8 +23,14 @@ function context = nhpulseCreateProjectContext(projectRoot, runId, varargin)
     context.runId = runId;
     context.runLabel = char(p.Results.runLabel);
     context.metadata = p.Results.metadata;
-    context.manifestFile = fullfile(projectRoot, 'manifests', runId, ...
-        'nhpulse-manifest.mat');
+    manifestFile = char(p.Results.manifestFile);
+    if isempty(manifestFile)
+        manifestFile = fullfile(projectRoot, 'manifests', runId, ...
+            'nhpulse-manifest.mat');
+    else
+        manifestFile = canonicalPath(manifestFile);
+    end
+    context.manifestFile = manifestFile;
 end
 
 function value = safeKey(value)
