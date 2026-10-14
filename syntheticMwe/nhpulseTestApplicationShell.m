@@ -49,6 +49,12 @@ function report = nhpulseTestApplicationShell(varargin)
     app.WorkflowList.ValueChangedFcn(app.WorkflowList, []);
     report.settingsButtonPresent = isgraphics(app.SettingsButton) && ...
         strcmp(app.SettingsButton.Enable, 'on');
+    app.SubjectDropDown.Value = 'SubjectA';
+    app.SubjectDropDown.ValueChangedFcn(app.SubjectDropDown, []);
+    app.RefreshButton.ButtonPushedFcn(app.RefreshButton, []);
+    report.refreshPreservesSelection = ...
+        strcmp(app.SubjectDropDown.Value, 'SubjectA') && ...
+        contains(app.RunDropDown.Value, 'subject-a-run');
     app.SubjectDropDown.Value = 'LegacySubject';
     app.SubjectDropDown.ValueChangedFcn(app.SubjectDropDown, []);
     legacyData = app.ArtifactTable.Data;

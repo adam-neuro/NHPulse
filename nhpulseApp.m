@@ -136,6 +136,7 @@ function app = nhpulseApp(varargin)
     end
 
     function refreshProject(showErrors)
+        previousSelection = captureProjectSelection();
         setBusy(true, 'Reading project manifests and artifact status...');
         cleanup = onCleanup(@() setBusy(false, 'Ready'));
         try
@@ -157,7 +158,9 @@ function app = nhpulseApp(varargin)
             state.selectedArtifactRow = [];
             fig.UserData = state;
             updateSubjectSelector();
+            restoreSubjectSelection(previousSelection);
             updateRunSelector();
+            restoreRunSelection(previousSelection);
             updateArtifactTable();
             updateWorkflow();
             updateSummary();
@@ -173,6 +176,41 @@ function app = nhpulseApp(varargin)
             end
         end
         clear cleanup
+    end
+
+    function selection = captureProjectSelection()
+        selection = struct('subject', '', 'runId', '', 'manifestFile', '');
+        if isgraphics(subjectDropDown) && ~isempty(subjectDropDown.Value)
+            selection.subject = char(subjectDropDown.Value);
+        end
+        run = selectedRun();
+        if ~isempty(run)
+            selection.runId = run.runId;
+            selection.manifestFile = run.manifestFile;
+        end
+    end
+
+    function restoreSubjectSelection(selection)
+        if ~isempty(selection.subject) && ...
+                any(strcmp(subjectDropDown.Items, selection.subject))
+            subjectDropDown.Value = selection.subject;
+        end
+    end
+
+    function restoreRunSelection(selection)
+        if isempty(selection.runId), return; end
+        state = fig.UserData;
+        for itemIndex = 1:numel(state.runMap)
+            runIndex = state.runMap(itemIndex);
+            if runIndex <= 0, continue; end
+            run = state.project.runs(runIndex);
+            if strcmp(run.runId, selection.runId) && ...
+                    (isempty(selection.manifestFile) || ...
+                    pathMask({run.manifestFile}, selection.manifestFile))
+                runDropDown.Value = runDropDown.Items{itemIndex};
+                return;
+            end
+        end
     end
 
     function updateSubjectSelector()
@@ -478,6 +516,10 @@ function app = nhpulseApp(varargin)
     end
 
     function onLaunchStage(~, ~)
+        % Specialized tools and command-line services may update manifests
+        % while the app remains open. Refresh before resolving dependencies
+        % so the table and the launch safety check use the same snapshot.
+        refreshProject(false);
         idx = selectedWorkflowIndex();
         item = workflow(idx);
         if isempty(item.action), return; end
@@ -663,6 +705,12 @@ function app = nhpulseApp(varargin)
                         reviewArgs = [reviewArgs, ...
                             {'projectContext', selectedContext()}]; %#ok<AGROW>
                     end
+                    if selectedRunUsesDummyLeadField()
+                        reviewArgs = [reviewArgs, {'showField', 'never', ...
+                            'showEegTopography', 'never'}]; %#ok<AGROW>
+                        setStatus(['Dummy lead-field run: showing the current ', ...
+                            'recipe only; physical field replay is disabled.']);
+                    end
                     acsShowTesStimulationParameters(artifact.path, reviewArgs{:});
                 otherwise
                     error('nhpulseApp:NoInspector', ...
@@ -677,6 +725,35 @@ function app = nhpulseApp(varargin)
             end
         end
         clear cleanup
+    end
+
+    function tf = selectedRunUsesDummyLeadField()
+        tf = false;
+        run = selectedRun();
+        if isempty(run) || ~isfield(run.manifest, 'artifacts'), return; end
+        artifacts = run.manifest.artifacts;
+        for j = 1:numel(artifacts)
+            metadata = artifacts(j).metadata;
+            if ~isstruct(metadata), continue; end
+            key = artifacts(j).artifactId;
+            if isfield(metadata, 'artifactKey')
+                key = char(metadata.artifactKey);
+            end
+            if ~any(strcmp(key, {'final-lead-field', 'optimized-montage'}))
+                continue;
+            end
+            mode = '';
+            if isfield(metadata, 'leadFieldMode')
+                mode = char(metadata.leadFieldMode);
+            elseif isfield(metadata, 'mode')
+                mode = char(metadata.mode);
+            end
+            if any(strcmpi(strtrim(mode), ...
+                    {'dummy', 'synthetic', 'developmentheuristic'}))
+                tf = true;
+                return;
+            end
+        end
     end
 
     function artifact = selectedArtifact()
