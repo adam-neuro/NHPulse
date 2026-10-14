@@ -49,6 +49,17 @@ anchor planning, and manufacturing inspection. Accepted outputs are recorded
 immediately. If an upstream decision changes, manifest checks mark dependent
 products stale rather than silently treating them as compatible.
 
+Closing or canceling an interactive selection tool leaves the manifest and its
+accepted artifact unchanged. A canceled tool is reported in the status bar,
+not as a failed pipeline stage.
+
+Stages that create or replace artifacts require current parents. For example,
+Velcro anchors cannot safely be regenerated from a combined layout whose
+target or scalp dependency is stale. Read-only inspection is different:
+existing manufacturing geometry can still be opened from the workflow or the
+Artifacts table. The app warns when that geometry is historical, because it
+should not be used as a current input until the upstream chain is rebuilt.
+
 The shell intentionally leaves long or highly configurable operations, such as
 lead-field generation and montage optimization, in the documented service and
 walkthrough APIs for now. Those stages still appear in workflow navigation and

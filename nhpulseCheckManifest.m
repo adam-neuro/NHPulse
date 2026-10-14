@@ -135,7 +135,11 @@ function report = nhpulseCheckManifest(manifestIn, varargin)
         if cycleAffected(i)
             checks(i).messages{end + 1} = 'dependency cycle or cycle-dependent artifact';
         elseif ownPassed(i) && ~passed(i)
-            checks(i).messages{end + 1} = 'upstream parent is stale or invalid';
+            staleParents = parentIndices{i}(~passed(parentIndices{i}));
+            parentNames = ids(staleParents);
+            checks(i).messages{end + 1} = sprintf( ...
+                'upstream parent(s) stale or invalid: %s', ...
+                strjoin(parentNames, ', '));
         end
         if checks(i).passed
             checks(i).status = 'current';

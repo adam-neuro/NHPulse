@@ -339,6 +339,10 @@ function app = nhpulseApp(varargin)
             inspectButton.Enable = onOff(canInspect(artifact.type));
             artifactFolderButton.Enable = 'on';
             selectedPathLabel.Text = artifact.artifactId;
+            if ~strcmp(artifact.status, 'current') && ~isempty(artifact.messages)
+                setStatus(sprintf('%s: %s', upper(artifact.status), ...
+                    strjoin(artifact.messages, '; ')));
+            end
         end
         fig.UserData = state;
     end
@@ -485,18 +489,23 @@ function app = nhpulseApp(varargin)
             if ~strcmp(answer, 'Continue'), return; end
         end
         setBusy(true, ['Launching ' item.name '...']);
+        finalStatus = 'Ready';
         cleanup = onCleanup(@() setBusy(false, 'Ready'));
         try
             launchAction(item.action);
             refreshProject(false);
         catch ME
-            if strcmp(fig.Visible, 'on')
-                uialert(fig, ME.message, [item.name ' failed']);
+            if isCancellationError(ME)
+                finalStatus = [item.name ' canceled; no artifact was changed.'];
+            elseif strcmp(fig.Visible, 'on')
+                uialert(fig, friendlyLaunchError(ME, item), ...
+                    [item.name ' unavailable']);
             else
                 rethrow(ME);
             end
         end
         clear cleanup
+        if ~strcmp(finalStatus, 'Ready'), setStatus(finalStatus); end
     end
 
     function launchAction(action)
@@ -553,8 +562,19 @@ function app = nhpulseApp(varargin)
                 nhpulseServicePlanRetention(context, inputs, ...
                     stageConfig('retention'));
             case 'manufacturingInspector'
-                design = requireArtifact(context, {'manufacturing-design'}, ...
+                design = inspectableArtifact(context, {'manufacturing-design'}, ...
                     {'nhpulse.manufacturingGeometry'});
+                if ~strcmp(design.status, 'current') && strcmp(fig.Visible, 'on')
+                    answer = uiconfirm(fig, sprintf([ ...
+                        'This saved manufacturing design is %s because one or ', ...
+                        'more upstream artifacts changed.\n\nInspection is safe, ', ...
+                        'but the geometry should not be treated as the current ', ...
+                        'design for this run.'], design.status), ...
+                        'Inspect historical geometry?', ...
+                        'Options', {'Inspect', 'Cancel'}, ...
+                        'DefaultOption', 1, 'CancelOption', 2);
+                    if ~strcmp(answer, 'Inspect'), return; end
+                end
                 acsInspectCapMakerManufacturingGeometry(design.path, ...
                     'showFigures', true, 'saveFigures', false);
             otherwise
@@ -564,11 +584,15 @@ function app = nhpulseApp(varargin)
     end
 
     function handle = requireArtifact(context, keys, types)
-        handle = findArtifact(context, keys, types, true);
+        handle = findArtifact(context, keys, types, true, true);
+    end
+
+    function handle = inspectableArtifact(context, keys, types)
+        handle = findArtifact(context, keys, types, true, false);
     end
 
     function handle = optionalArtifact(context, keys, types)
-        handle = findArtifact(context, keys, types, false);
+        handle = findArtifact(context, keys, types, false, true);
     end
 
     function handles = optionalArtifacts(context, keys, types)
@@ -588,16 +612,18 @@ function app = nhpulseApp(varargin)
         end
     end
 
-    function handle = findArtifact(context, keys, types, required)
+    function handle = findArtifact(context, keys, types, required, requireCurrent)
         state = fig.UserData;
         mask = strcmp({state.project.artifacts.runId}, context.runId) & ...
             pathMask({state.project.artifacts.manifestFile}, ...
-            context.manifestFile) & ...
-            strcmp({state.project.artifacts.status}, 'current');
+            context.manifestFile);
+        if requireCurrent
+            mask = mask & strcmp({state.project.artifacts.status}, 'current');
+        end
         candidates = state.project.artifacts(mask);
         idx = [];
         for j = 1:numel(keys)
-            idx = find(strcmp({candidates.artifactId}, keys{j}), 1);
+            idx = find(strcmp({candidates.artifactId}, keys{j}), 1, 'last');
             if ~isempty(idx), break; end
         end
         if isempty(idx)
@@ -613,7 +639,8 @@ function app = nhpulseApp(varargin)
             return;
         end
         handle = nhpulseResolveArtifact(context, candidates(idx).artifactId, ...
-            'expectedType', types);
+            'expectedType', types, 'requireCurrent', requireCurrent, ...
+            'verifyContent', false);
     end
 
     function onInspectArtifact(~, ~)
@@ -799,6 +826,36 @@ function tf = hasStageSettings(stageKey)
     catch ME
         if ~strcmp(ME.identifier, 'nhpulseStageSettings:UnknownStage')
             rethrow(ME);
+        end
+    end
+end
+
+function tf = isCancellationError(exception)
+    tf = contains(lower(char(exception.identifier)), 'cancel');
+    if tf, return; end
+    for i = 1:numel(exception.cause)
+        if isCancellationError(exception.cause{i})
+            tf = true;
+            return;
+        end
+    end
+end
+
+function message = friendlyLaunchError(exception, item)
+    message = exception.message;
+    if strcmp(exception.identifier, 'nhpulseResolveArtifact:ArtifactNotCurrent') || ...
+            contains(lower(exception.message), 'parent is stale') || ...
+            contains(lower(exception.message), 'upstream parent')
+        if item.modifiesArtifacts
+            message = sprintf(['%s\n\nThis stage creates or replaces artifacts, so ', ...
+                'all of its inputs must be current. Repair or rerun the first ', ...
+                'stale upstream stage, then continue forward. Existing saved ', ...
+                'products can still be inspected from the Artifacts table.'], ...
+                exception.message);
+        else
+            message = sprintf(['%s\n\nThe saved product may still be inspected, ', ...
+                'but it should not be used as a current pipeline input.'], ...
+                exception.message);
         end
     end
 end
