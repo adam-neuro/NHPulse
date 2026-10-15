@@ -103,8 +103,9 @@ verification = nhpulseVerifySyntheticWalkthrough();
   functions fit.
 - [API Reference](docs/api_reference.md): public setup, modeling, optimization,
   manufacturing, and quality-control utilities.
-- [3D Printing And Fabrication](docs/fabrication.md): tested PLA/TPE printing
-  setup, Cura slicing steps, and optional TAZ Pro G-code patching.
+- [3D Printing And Fabrication](docs/fabrication.md): printer-validation
+  coupons, local cap test crops, tested PLA/TPE setup, Cura slicing, and the
+  optional TAZ Pro G-code patcher.
 - [Configuration](docs/configuration.md): `local.paths.json` and
   `nhpulseExampleConfig` presets.
 - [Validation](docs/validation.md): smoke tests, verification, and manual test

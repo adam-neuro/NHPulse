@@ -51,6 +51,7 @@ nhpulseTestManifestRecorder;
 nhpulseTestProjectInspection;
 nhpulseTestServiceLayer;
 nhpulseTestApplicationShell;
+nhpulseTestPrinterCoupons;
 ```
 
 These fast tests use temporary files only. They verify manifest round trips,
@@ -61,6 +62,9 @@ workspace independence, stale-input rejection, and dependency refresh.
 The application-shell test opens a hidden project window and verifies project,
 subject, run, workflow, and artifact-table population. It also verifies legacy
 artifact display and explicit import into a subject-labeled inventory run.
+The printer-coupon test generates the flat dual-material coupon, the curved
+dome-and-rail coupon, and a coordinated local crop, then verifies that every
+expected STL and report is nonempty.
 
 ## Manual Checks
 

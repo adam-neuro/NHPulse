@@ -25,6 +25,66 @@ NHPulse can also export sparse PLA-only fit-check caps. These are faster,
 single-material scaffolds intended to test the overall cap shape before
 committing to a full dual-material print.
 
+## Printer Validation Ladder
+
+Validate a new printer, material combination, or slicer profile before using
+subject-specific geometry. NHPulse provides three increasingly realistic test
+prints.
+
+### 1. Material-transition coupon
+
+The quickest test prints a short PLA square with a short TPE square directly
+on top. It checks bed adhesion, extruder assignment, material switching, TPE
+feeding, and adhesion of TPE to PLA while using little time or filament.
+
+```matlab
+coupon = nhpulseMakeDualMaterialPrintCoupon;
+```
+
+Import `coupon.plaStlFile` and `coupon.tpeStlFile` together, assign their
+materials, merge them, and slice without independently repositioning either
+part. The default coupon is 25 x 25 mm with 2 mm of each material.
+
+### 2. Dome-and-rail coupon
+
+The second test is a small curved triangular TPE rail network with removable
+PLA underfill. It exercises curvature, rail junctions, support contact, and
+support removal using the same raster fusion and underfill machinery as the
+full cap.
+
+```matlab
+domeCoupon = nhpulseMakeDomeRailPrintCoupon;
+```
+
+This print takes longer and uses more material than the square coupon, but it
+is a better rehearsal for the geometry and material interfaces in a real cap.
+
+### 3. Local crop from a completed cap
+
+When one holder, anchor, or local rail junction needs physical inspection,
+crop both material STLs to one small coordinated test volume instead of
+printing the whole cap:
+
+```matlab
+testCrop = nhpulseCropDualMaterialPrint(manufacturingReport, ...
+    'electrodeName', 'customEEG3');
+```
+
+The source can be a manufacturing report MAT file, or a TPE STL accompanied
+by the `plaFile` option. A crop may instead be centered explicitly:
+
+```matlab
+testCrop = nhpulseCropDualMaterialPrint(manufacturingReport, ...
+    'centerMm', [20 -15 12], 'sizeMm', [35 35 24]);
+```
+
+Both materials are clipped by the same box and remeshed to close the cut
+surfaces. By default the pair is translated together to the XY origin with its
+lowest point on the printer bed; their relative registration is unchanged.
+Inspect the preview and sliced layers before printing. Cropping a holder tests
+local geometry and printability, but it does not reproduce the compliance or
+load distribution of the full cap.
+
 The currently recommended retention workflow uses reinforced Velcro attachment
 loops around the cap edge instead of integrated printed chin straps.
 `acsPlanVelcroAnchors` proposes six bilateral loop locations, lets the user

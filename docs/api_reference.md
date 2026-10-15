@@ -106,6 +106,12 @@ sequence.
 - `acsPlanVelcroAnchors`: propose and refine six Velcro-loop attachment
   anchors around the cap edge.
 - `acsBuildCapMakerManufacturingStl`: export dual-material cap STL products.
+- `nhpulseMakeDualMaterialPrintCoupon`: export a fast stacked PLA/TPE printer
+  calibration coupon.
+- `nhpulseMakeDomeRailPrintCoupon`: export a curved TPE rail network with PLA
+  underfill as a cap-like printer test.
+- `nhpulseCropDualMaterialPrint`: crop coordinated PLA/TPE cap STLs around an
+  electrode or explicit local box for a targeted physical test.
 - `acsInspectCapMakerManufacturingGeometry`: inspect scalp/cap/electrode
   geometry and orientation diagnostics.
 - `acsPreviewChinStrapGeometry`: interactively preview chin strap parameters.
