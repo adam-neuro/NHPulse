@@ -146,6 +146,13 @@ The upstream ROAST README is preserved at
 [docs/ROAST_README.md](docs/ROAST_README.md). Please see
 [CITATION.md](CITATION.md) for citation details.
 
+## Project Lead And Funding
+
+NHPulse is developed by Adam C. Snyder at the University of Rochester. More
+information about the research group is available from the
+[Snyder Lab website](https://adams-lab.weebly.com/). The project was supported
+by the NIH BRAIN Initiative under grant R34 NS143690.
+
 ## Caveats
 
 - NHPulse is research software. It is not a medical device and is not validated

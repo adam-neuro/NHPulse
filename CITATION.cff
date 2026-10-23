@@ -4,7 +4,9 @@ title: "NHPulse: individualized non-human-primate EEG/tES cap design with ROAST 
 type: software
 authors:
   - family-names: "Snyder"
-    given-names: "Adam"
+    given-names: "Adam C."
+    affiliation: "University of Rochester"
+    website: "https://adams-lab.weebly.com/"
 abstract: "NHPulse is a MATLAB research workflow for individualized non-human-primate EEG/tES cap design, including synthetic examples, ROAST/capMaker integration, tES targeting, EEG interleaving, and cap-manufacturing STL export."
 keywords:
   - "non-human primate"

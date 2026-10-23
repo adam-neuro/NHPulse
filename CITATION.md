@@ -1,7 +1,19 @@
 # Citation
 
-If NHPulse contributes to a project, please cite the upstream ROAST toolbox and
-any targeting methods used by the workflow.
+If NHPulse contributes to a project, please cite the NHPulse software release
+or repository commit used in the work. If the work uses ROAST-derived modeling
+or targeting methods, please also cite the applicable upstream publications
+below.
+
+## NHPulse
+
+NHPulse is developed by Adam C. Snyder at the University of Rochester; see the
+[Snyder Lab website](https://adams-lab.weebly.com/). Until a NHPulse paper and
+archived release DOI are available, cite the repository URL, version or commit
+hash, and access date.
+
+Development of NHPulse was supported by the NIH BRAIN Initiative under grant
+R34 NS143690.
 
 ## ROAST
 
